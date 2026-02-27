@@ -183,6 +183,9 @@ export function getCardTypes(typeLine: string | undefined): string[] {
     for (const type of coreTypes) {
         if (typeLine.includes(type)) types.push(type);
     }
+    if (types.length === 0 && !typeLine.includes("//") && !typeLine.includes("—")) {
+        return [typeLine];
+    }
     return types;
 }
 

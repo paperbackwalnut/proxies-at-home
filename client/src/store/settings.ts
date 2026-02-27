@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { TcgId } from "@/config/tcgConfig";
 import { recordSettingChange } from "../helpers/undoableSettings";
 import { useUndoRedoStore } from "./undoRedo";
 import { CONSTANTS } from "@/constants/commonConstants";
@@ -142,6 +143,8 @@ export type Store = {
   // Preferred art source when opening artwork modal
   preferredArtSource: typeof ImageSource.Scryfall | typeof ImageSource.MPC;
   setPreferredArtSource: (value: typeof ImageSource.Scryfall | typeof ImageSource.MPC) => void;
+  activeTcg: TcgId;
+  setActiveTcg: (value: TcgId) => void;
   setAllSettings: (settings: Partial<Store>) => void;
   hasHydrated: boolean;
   setHasHydrated: (value: boolean) => void;
@@ -542,8 +545,10 @@ export const useSettingsStore = create<Store>()((set) => ({
   mpcFuzzySearch: true,
   setMpcFuzzySearch: (enabled) => set({ mpcFuzzySearch: enabled }),
   // Preferred art source
-  preferredArtSource: 'scryfall',
+  preferredArtSource: ImageSource.Scryfall,
   setPreferredArtSource: (value) => set({ preferredArtSource: value }),
+  activeTcg: 'mtg' as TcgId,
+  setActiveTcg: (value) => set({ activeTcg: value }),
   // Card Editor section state
 
   hasHydrated: false,

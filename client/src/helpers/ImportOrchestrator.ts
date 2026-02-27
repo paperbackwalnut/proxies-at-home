@@ -1,4 +1,5 @@
 import { type ImportIntent, parseLineToIntent } from "./importParsers";
+import type { TcgId } from "@/config/tcgConfig";
 import { streamCards, type CardInfo } from "./streamCards";
 import { undoableAddCards } from "./undoableActions";
 import { addRemoteImage, createLinkedBackCardsBulk } from "./dbUtils";
@@ -24,6 +25,7 @@ export interface ImportSettings {
     autoImportTokens: boolean;
     projectId: string;
     favoriteScryfallSets?: string[];
+    activeTcg?: TcgId;
 }
 
 export interface OrchestratorOptions {
@@ -73,6 +75,7 @@ export class ImportOrchestrator {
             autoImportTokens: useSettingsStore.getState().autoImportTokens,
             projectId: useProjectStore.getState().currentProjectId!,
             favoriteScryfallSets: useUserPreferencesStore.getState().preferences?.favoriteScryfallSets,
+            activeTcg: useSettingsStore.getState().activeTcg ?? 'mtg',
         };
 
         if (!settings.projectId) throw new Error("No active project");
@@ -407,6 +410,7 @@ export class ImportOrchestrator {
                 language,
                 importType: 'scryfall',
                 artSource: source,
+                tcg: settings.activeTcg,
                 signal,
                 onComplete: () => {
                     reportProgress(intents.length);

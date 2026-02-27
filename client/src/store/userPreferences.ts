@@ -20,6 +20,10 @@ interface UserPreferencesState {
     setFavoriteScryfallGroupBySet: (enabled: boolean) => Promise<void>;
     setFavoriteScryfallSearchMode: (mode: 'cards' | 'prints' | null) => Promise<void>;
 
+    toggleFavoritePokemonSet: (set: string) => Promise<void>;
+    setFavoritePokemonSort: (sort: 'name' | 'released' | null) => Promise<void>;
+    setFavoritePokemonGroupBySet: (enabled: boolean) => Promise<void>;
+
     setUploadLibrarySort: (sort: 'name' | 'date' | 'type' | null) => Promise<void>;
     setUploadLibrarySortDirection: (dir: 'asc' | 'desc') => Promise<void>;
     setFavoriteUploadLibraryGroupByType: (enabled: boolean) => Promise<void>;
@@ -68,6 +72,7 @@ export const useUserPreferencesStore = create<UserPreferencesState>((set, get) =
             if (!prefs.favoriteMpcSources) prefs.favoriteMpcSources = [];
             if (!prefs.favoriteMpcTags) prefs.favoriteMpcTags = [];
             if (!prefs.favoriteScryfallSets) prefs.favoriteScryfallSets = [];
+            if (!prefs.favoritePokemonSets) prefs.favoritePokemonSets = [];
 
             // Migration: customXXX -> uploadLibraryXXX
             /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -351,6 +356,34 @@ export const useUserPreferencesStore = create<UserPreferencesState>((set, get) =
         if (!prefs) return;
 
         const newPrefs = { ...prefs, favoriteScryfallSearchMode: mode };
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+
+    toggleFavoritePokemonSet: async (setKey: string) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const current = prefs.favoritePokemonSets || [];
+        const updated = current.includes(setKey)
+            ? current.filter(s => s !== setKey)
+            : [...current, setKey];
+        const newPrefs = { ...prefs, favoritePokemonSets: updated };
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+
+    setFavoritePokemonSort: async (sort: 'name' | 'released' | null) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const newPrefs = { ...prefs, favoritePokemonSort: sort };
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+
+    setFavoritePokemonGroupBySet: async (enabled: boolean) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const newPrefs = { ...prefs, favoritePokemonGroupBySet: enabled };
         await db.userPreferences.put(newPrefs);
         set({ preferences: newPrefs });
     },

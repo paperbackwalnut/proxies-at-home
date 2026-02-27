@@ -8,6 +8,8 @@ import { CardImageSvg } from "./CardImageSvg";
 import { useScryfallSearch } from "@/hooks/useScryfallSearch";
 import { useScryfallPrints } from "@/hooks/useScryfallPrints";
 import { useMpcSearch } from "@/hooks/useMpcSearch";
+import { usePokemonSearch, usePokemonPrints } from "@/hooks/usePokemonSearch";
+import { useSettingsStore } from "@/store";
 import {
   filterPrintsByFace,
   getFaceNamesFromPrints,
@@ -19,6 +21,7 @@ import {
   extractMpcIdentifierFromImageId,
 } from "@/helpers/mpcAutofillApi";
 import { fetchScryfallSets } from "@/helpers/scryfallApi";
+import { fetchPokemonSets } from "@/helpers/tcgdexApi";
 import type { ScryfallCard, PrintInfo } from "../../../../shared/types";
 import { useUserPreferencesStore } from "@/store";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
@@ -216,15 +219,72 @@ export function CardArtContent({
       hasInitializedScryfallFilters.current = true;
     }
   }, [favoriteScryfallSets]);
+  const activeTcg = useSettingsStore((s) => s.activeTcg ?? 'mtg');
+  const isPokemon = activeTcg === 'pokemon' && artSource === 'scryfall';
+
+  const favoritePokemonSets = useUserPreferencesStore(
+    (s) => s.preferences?.favoritePokemonSets || []
+  );
+  const [pokemonSetFilters, setPokemonSetFilters] = useState<Set<string>>(new Set());
+  const hasInitializedPokemonFilters = useRef(false);
+  useEffect(() => {
+    if (!hasInitializedPokemonFilters.current && favoritePokemonSets.length > 0) {
+      setPokemonSetFilters(new Set(favoritePokemonSets));
+      hasInitializedPokemonFilters.current = true;
+    }
+  }, [favoritePokemonSets]);
+
+  const favoritePokemonSort = useUserPreferencesStore(
+    (s) => s.preferences?.favoritePokemonSort
+  );
+  const [pokemonSortBy, setPokemonSortBy] = useState<"name">("name");
+  const pokemonSortInitRef = useRef(false);
+  useEffect(() => {
+    if (!pokemonSortInitRef.current && favoritePokemonSort) {
+      setPokemonSortBy(favoritePokemonSort as "name");
+      pokemonSortInitRef.current = true;
+    }
+  }, [favoritePokemonSort]);
+
+  const [pokemonSortDir, setPokemonSortDir] = useState<"asc" | "desc">("asc");
+  const [pokemonGroupBySet, setPokemonGroupBySet] = useState(false);
+  const favoritePokemonGroupBySet = useUserPreferencesStore(
+    (s) => s.preferences?.favoritePokemonGroupBySet
+  );
+  const pokemonGroupBySetInitRef = useRef(false);
+  useEffect(() => {
+    if (!pokemonGroupBySetInitRef.current && favoritePokemonGroupBySet !== undefined) {
+      setPokemonGroupBySet(favoritePokemonGroupBySet);
+      pokemonGroupBySetInitRef.current = true;
+    }
+  }, [favoritePokemonGroupBySet]);
+
+  const [pokemonCollapsedSets, setPokemonCollapsedSets] = useState<Set<string>>(new Set());
+  const [allPokemonSetsCollapsed, setAllPokemonSetsCollapsed] = useState(false);
+
+  const [pokemonExactMatch, setPokemonExactMatch] = useState(false);
+
   const scryfallSearchData = useScryfallSearch(query, {
-    autoSearch: artSource === "scryfall" && mode === "search" && !!query.trim(),
+    autoSearch: !isPokemon && artSource === "scryfall" && mode === "search" && !!query.trim(),
     unique: scryfallSearchMode,
   });
   const scryfallPrintsData = useScryfallPrints({
     name: query,
-    enabled: artSource === "scryfall" && mode === "prints" && !initialPrints,
-    initialPrints,
+    enabled: !isPokemon && artSource === "scryfall" && mode === "prints" && !initialPrints,
+    initialPrints: isPokemon ? undefined : initialPrints,
   });
+
+  const pokemonSearchData = usePokemonSearch(query, {
+    autoSearch: isPokemon && mode === "search" && !!query.trim(),
+  });
+  const pokemonPrintsData = usePokemonPrints(query, isPokemon && mode === "prints");
+
+  // Unified data: swap Scryfall for Pokemon when in Pokemon mode
+  const activeSearchData = isPokemon ? pokemonSearchData : scryfallSearchData;
+  const activePrintsData = isPokemon
+    ? { prints: pokemonPrintsData.prints as PrintInfo[], isLoading: pokemonPrintsData.isLoading, hasSearched: pokemonPrintsData.prints.length > 0 }
+    : scryfallPrintsData;
+
 
   const selectedMpcId = useMemo(() => {
     if (!selectedArtId) return undefined;
@@ -239,8 +299,8 @@ export function CardArtContent({
 
   // For DFC filtering in prints mode, extract face names and filter
   const uniqueFaces = useMemo(
-    () => getFaceNamesFromPrints(scryfallPrintsData.prints),
-    [scryfallPrintsData.prints]
+    () => getFaceNamesFromPrints(activePrintsData.prints),
+    [activePrintsData.prints]
   );
 
   // Sort faces to prioritize the one matching the query (case-insensitive)
@@ -274,12 +334,12 @@ export function CardArtContent({
   const basePrints = useMemo(
     () =>
       filterPrintsByFace(
-        scryfallPrintsData.prints,
+        activePrintsData.prints,
         selectedFace || "front",
         faceNames[0],
         faceNames[1]
       ),
-    [scryfallPrintsData.prints, selectedFace, faceNames]
+    [activePrintsData.prints, selectedFace, faceNames]
   );
 
   // Scryfall Sort Key
@@ -315,8 +375,10 @@ export function CardArtContent({
     Map<string, { name: string; icon_svg_uri: string; released_at: string }>
   >(new Map());
 
+  const [pokemonSetNames, setPokemonSetNames] = useState<Map<string, string>>(new Map());
+
   useEffect(() => {
-    if (artSource === "scryfall") {
+    if (artSource === "scryfall" && !isPokemon) {
       fetchScryfallSets().then((sets) => {
         const map = new Map();
         sets.forEach((s) =>
@@ -329,7 +391,14 @@ export function CardArtContent({
         setAllScryfallSets(map);
       });
     }
-  }, [artSource]);
+    if (isPokemon && pokemonSetNames.size === 0) {
+      fetchPokemonSets().then((sets) => {
+        const map = new Map<string, string>();
+        sets.forEach((s) => map.set(s.id, s.name));
+        setPokemonSetNames(map);
+      });
+    }
+  }, [artSource, isPokemon]);
 
   // Available Sets Logic
   // If browsing (empty query), allow selecting from ALL sets
@@ -344,8 +413,8 @@ export function CardArtContent({
     // Use filtered or raw? Use raw to allow filtering down
     const sourceList =
       mode === "prints"
-        ? scryfallPrintsData.prints || []
-        : scryfallSearchData.cards;
+        ? activePrintsData.prints || []
+        : activeSearchData.cards;
     sourceList.forEach((card) => {
       if (card.set) sets.add(card.set);
     });
@@ -355,8 +424,8 @@ export function CardArtContent({
     artSource,
     mode,
     allScryfallSets,
-    scryfallSearchData.cards,
-    scryfallPrintsData.prints,
+    activeSearchData.cards,
+    activePrintsData.prints,
   ]);
 
   // Scryfall Sort State
@@ -364,16 +433,16 @@ export function CardArtContent({
   const userScryfallSort = useUserPreferencesStore(
     (state) => state.preferences?.favoriteScryfallSort
   );
-  const [scryfallSortBy, setScryfallSortBy] = useState<"name" | "released">(
+  const [scryfallSortBy, setScryfallSortBy] = useState<"name" | "released" | "rarity" | "set">(
     "released"
   );
 
-  // Initialize sort from preferences when available
+  // Initialize sort from preferences when available (Scryfall only)
   useEffect(() => {
-    if (userScryfallSort) {
+    if (!isPokemon && userScryfallSort) {
       setScryfallSortBy(userScryfallSort);
     }
-  }, [userScryfallSort]);
+  }, [userScryfallSort, isPokemon]);
 
   const [scryfallSortDir, setScryfallSortDir] = useState<"asc" | "desc">(
     "desc"
@@ -417,13 +486,21 @@ export function CardArtContent({
     if (mode === "search" && artSource === "scryfall" && !query.trim())
       return [];
 
-    let cards = scryfallSearchData.cards;
+    let cards = activeSearchData.cards;
 
     // Deduplication is now handled server-side via unique param passed to useScryfallSearch
     // We trust the API result based on scryfallSearchMode ('cards' or 'prints')
 
-    if (scryfallSetFilters.size > 0) {
-      cards = cards.filter((c) => c.set && scryfallSetFilters.has(c.set));
+    const activeSetFilters = isPokemon ? pokemonSetFilters : scryfallSetFilters;
+    const activeSortBy = isPokemon ? pokemonSortBy : scryfallSortBy;
+    const activeSortDir = isPokemon ? pokemonSortDir : scryfallSortDir;
+
+    if (activeSetFilters.size > 0) {
+      cards = cards.filter((c) => c.set && activeSetFilters.has(c.set));
+    }
+
+    if (isPokemon && pokemonExactMatch && query.trim()) {
+      cards = cards.filter((c) => c.name.toLowerCase() === query.trim().toLowerCase());
     }
 
     // Sort results
@@ -434,37 +511,42 @@ export function CardArtContent({
 
         if (isMultiPrintMode) {
           // For multi-print (all prints of one card), 'name' sort is irrelevant (all same name)
-          if (scryfallSortBy === "name") return 0;
+          if (activeSortBy === "name") return 0;
 
-          if (scryfallSortBy === "released") {
+          if (activeSortBy === "released") {
             const dateA = a.released_at ? new Date(a.released_at).getTime() : 0;
             const dateB = b.released_at ? new Date(b.released_at).getTime() : 0;
             comparison = dateA - dateB;
-          } else if (scryfallSortBy === "set") {
+          } else if (activeSortBy === "set") {
             comparison = (a.set || "").localeCompare(b.set || "");
           }
         } else {
           // For search results (different cards)
-          if (scryfallSortBy === "released") {
+          if (activeSortBy === "released") {
             const dateA = a.released_at ? new Date(a.released_at).getTime() : 0;
             const dateB = b.released_at ? new Date(b.released_at).getTime() : 0;
             comparison = dateA - dateB;
-          } else if (scryfallSortBy === "name") {
+          } else if (activeSortBy === "name") {
             comparison = a.name.localeCompare(b.name);
-          } else if (scryfallSortBy === "set") {
+          } else if (activeSortBy === "set") {
             comparison = (a.set || "").localeCompare(b.set || "");
           }
         }
-        return scryfallSortDir === "asc" ? comparison : -comparison;
+        return activeSortDir === "asc" ? comparison : -comparison;
       });
     }
 
     return cards;
   }, [
-    scryfallSearchData.cards,
+    activeSearchData.cards,
     scryfallSetFilters,
+    pokemonSetFilters,
     scryfallSortBy,
     scryfallSortDir,
+    pokemonSortBy,
+    pokemonSortDir,
+    isPokemon,
+    pokemonExactMatch,
     query,
     artSource,
     mode,
@@ -477,8 +559,9 @@ export function CardArtContent({
     if (!basePrints) return undefined;
     // Apply set filters to prints if active
     let prints = basePrints;
-    if (scryfallSetFilters.size > 0) {
-      prints = basePrints.filter((p) => p.set && scryfallSetFilters.has(p.set));
+    const activeSetFiltersForPrints = isPokemon ? pokemonSetFilters : scryfallSetFilters;
+    if (activeSetFiltersForPrints.size > 0) {
+      prints = basePrints.filter((p) => p.set && activeSetFiltersForPrints.has(p.set));
     }
 
     // Normal Sort for Prints
@@ -493,9 +576,12 @@ export function CardArtContent({
         if (!aSelected && bSelected) return 1;
       }
 
+      const printsSortBy = isPokemon ? pokemonSortBy : scryfallSortBy;
+      const printsSortDir = isPokemon ? pokemonSortDir : scryfallSortDir;
+
       let comparison = 0;
 
-      if (scryfallSortBy === "released") {
+      if (printsSortBy === "released") {
         // Look up release date using set code from allScryfallSets map
         const dateA = allScryfallSets.get(a.set)?.released_at || "";
         const dateB = allScryfallSets.get(b.set)?.released_at || "";
@@ -504,19 +590,28 @@ export function CardArtContent({
         const timeA = dateA ? new Date(dateA).getTime() : 0;
         const timeB = dateB ? new Date(dateB).getTime() : 0;
         comparison = timeA - timeB;
-      } else if (scryfallSortBy === "name") {
+      } else if (printsSortBy === "name") {
         // For prints of the SAME card, name is identical.
         // Sort by Set Code (alphabetical) as a fallback/primary for these modes
         comparison = (a.set || "").localeCompare(b.set || "");
+      } else if (printsSortBy === "rarity") {
+        const RARITY_ORDER: Record<string, number> = { common: 0, uncommon: 1, rare: 2, "double rare": 3, "ultra rare": 4, "hyper rare": 5, "illustration rare": 6, "special illustration rare": 7 };
+        const ra = RARITY_ORDER[a.rarity?.toLowerCase() ?? ""] ?? 99;
+        const rb = RARITY_ORDER[b.rarity?.toLowerCase() ?? ""] ?? 99;
+        comparison = ra - rb;
       }
 
-      return scryfallSortDir === "asc" ? comparison : -comparison;
+      return printsSortDir === "asc" ? comparison : -comparison;
     });
   }, [
     basePrints,
     scryfallSetFilters,
+    pokemonSetFilters,
+    isPokemon,
     scryfallSortBy,
     scryfallSortDir,
+    pokemonSortBy,
+    pokemonSortDir,
     allScryfallSets,
     scryfallSortKey,
     stripQuery,
@@ -559,8 +654,8 @@ export function CardArtContent({
       ? true
       : artSource === "scryfall"
         ? mode === "prints"
-          ? scryfallPrintsData.hasSearched
-          : scryfallSearchData.hasSearched
+          ? activePrintsData.hasSearched
+          : activeSearchData.hasSearched
         : mpcData.hasSearched;
   const hasResults =
     artSource === "upload-library" ||
@@ -608,27 +703,31 @@ export function CardArtContent({
   const stableFavoriteSetsRef = useRef<string[]>([]);
   const stableFavoriteSourcesRef = useRef<string[]>([]);
   const lastQueryRef = useRef(query);
-  const lastGroupBySetRef = useRef(scryfallGroupBySet);
+  const lastGroupBySetRef = useRef(isPokemon ? pokemonGroupBySet : scryfallGroupBySet);
   const lastMpcSortByRef = useRef(mpcGroupBySource);
 
   // Update stable snapshots on grouping changes or query changes
   useEffect(() => {
     const queryChanged = query !== lastQueryRef.current;
-    const groupingChanged = scryfallGroupBySet !== lastGroupBySetRef.current;
+    const activeGroupBySet = isPokemon ? pokemonGroupBySet : scryfallGroupBySet;
+    const groupingChanged = activeGroupBySet !== lastGroupBySetRef.current;
     const mpcGroupingChanged = mpcGroupBySource !== lastMpcSortByRef.current;
 
     if (queryChanged || groupingChanged || mpcGroupingChanged) {
-      stableFavoriteSetsRef.current = [...favoriteScryfallSets];
+      stableFavoriteSetsRef.current = isPokemon ? [...favoritePokemonSets] : [...favoriteScryfallSets];
       stableFavoriteSourcesRef.current = [...favoriteMpcSources];
       lastQueryRef.current = query;
-      lastGroupBySetRef.current = scryfallGroupBySet;
+      lastGroupBySetRef.current = activeGroupBySet;
       lastMpcSortByRef.current = mpcGroupBySource;
     }
   }, [
     query,
     scryfallGroupBySet,
+    pokemonGroupBySet,
+    isPokemon,
     mpcGroupBySource,
     favoriteScryfallSets,
+    favoritePokemonSets,
     favoriteMpcSources,
   ]);
 
@@ -861,16 +960,28 @@ export function CardArtContent({
       mpcData.filteredCards.length === 0) ||
     (artSource === "scryfall" &&
       (mode === "prints"
-        ? scryfallPrintsData.prints &&
-        scryfallPrintsData.prints.length > 0 &&
+        ? activePrintsData.prints &&
+        activePrintsData.prints.length > 0 &&
         (!filteredPrints || filteredPrints.length === 0)
-        : scryfallSearchData.cards.length > 0 &&
+        : activeSearchData.cards.length > 0 &&
         filteredScryfallCards.length === 0 &&
         !!query.trim()));
   const filteredOutMessage =
     artSource === "mpc"
       ? `"${query}" had ${mpcData.cards.length} result${mpcData.cards.length > 1 ? "s" : ""}, but current filters return none.`
-      : `"${query}" had ${mode === "prints" ? scryfallPrintsData.prints?.length || 0 : scryfallSearchData.cards.length} result${(mode === "prints" ? scryfallPrintsData.prints?.length || 0 : scryfallSearchData.cards.length) !== 1 ? "s" : ""}, but current filters return none.`;
+      : `"${query}" had ${mode === "prints" ? activePrintsData.prints?.length || 0 : activeSearchData.cards.length} result${(mode === "prints" ? activePrintsData.prints?.length || 0 : activeSearchData.cards.length) !== 1 ? "s" : ""}, but current filters return none.`;
+
+  const activeCollapsedSets = isPokemon ? pokemonCollapsedSets : collapsedSets;
+  const setActiveCollapsedSets = isPokemon ? setPokemonCollapsedSets : setCollapsedSets;
+  const activeToggleSetCollapse = (setCode: string) => {
+    setActiveCollapsedSets((prev) => {
+      const next = new Set(prev);
+      if (next.has(setCode)) next.delete(setCode);
+      else next.add(setCode);
+      return next;
+    });
+  };
+
   return (
     <div
       className={`${containerClassStyle || "h-full min-h-0"} flex flex-col flex-1 w-full`}
@@ -901,39 +1012,71 @@ export function CardArtContent({
             />
           )}
 
-          {/* Scryfall Filter Bar */}
           {artSource === "scryfall" && !filtersCollapsed && (
-            <CardArtFilterBar
-              mode="scryfall"
-              availableSets={availableScryfallSets}
-              selectedSets={scryfallSetFilters}
-              onSelectSet={setScryfallSetFilters}
-              sortBy={scryfallSortBy}
-              setSortBy={setScryfallSortBy}
-              sortDir={scryfallSortDir}
-              setSortDir={setScryfallSortDir}
-              groupBySet={scryfallGroupBySet}
-              onToggleGroupBySet={() => setScryfallGroupBySet((prev) => !prev)}
-              collapsedSets={collapsedSets}
-              setCollapsedSets={setCollapsedSets}
-              allSetsCollapsed={allSetsCollapsed}
-              setAllSetsCollapsed={setAllSetsCollapsed}
-              totalCount={
-                mode === "prints"
-                  ? basePrints?.length || 0
-                  : query.trim()
-                    ? scryfallSearchData.cards.length
-                    : 0
-              }
-              filteredCount={
-                mode === "prints"
-                  ? filteredPrints?.length || 0
-                  : filteredScryfallCards.length
-              }
-              searchMode={scryfallSearchMode}
-              setSearchMode={setScryfallSearchMode}
-              hideSearchModeSelector={mode === "prints"}
-            />
+            isPokemon ? (
+              <CardArtFilterBar
+                mode="pokemon"
+                availableSets={availableScryfallSets}
+                selectedSets={pokemonSetFilters}
+                onSelectSet={setPokemonSetFilters}
+                sortBy={pokemonSortBy}
+                setSortBy={(v) => setPokemonSortBy(v as "name")}
+                sortDir={pokemonSortDir}
+                setSortDir={setPokemonSortDir}
+                groupBySet={pokemonGroupBySet}
+                onToggleGroupBySet={() => setPokemonGroupBySet((prev) => !prev)}
+                collapsedSets={pokemonCollapsedSets}
+                setCollapsedSets={setPokemonCollapsedSets}
+                allSetsCollapsed={allPokemonSetsCollapsed}
+                setAllSetsCollapsed={setAllPokemonSetsCollapsed}
+                totalCount={
+                  mode === "prints"
+                    ? basePrints?.length || 0
+                    : query.trim()
+                      ? activeSearchData.cards.length
+                      : 0
+                }
+                filteredCount={
+                  mode === "prints"
+                    ? filteredPrints?.length || 0
+                    : filteredScryfallCards.length
+                }
+                exactMatch={pokemonExactMatch}
+                onToggleExactMatch={() => setPokemonExactMatch((prev) => !prev)}
+              />
+            ) : (
+              <CardArtFilterBar
+                mode="scryfall"
+                availableSets={availableScryfallSets}
+                selectedSets={scryfallSetFilters}
+                onSelectSet={setScryfallSetFilters}
+                sortBy={scryfallSortBy}
+                setSortBy={(v) => setScryfallSortBy(v as "name" | "released" | "rarity" | "set")}
+                sortDir={scryfallSortDir}
+                setSortDir={setScryfallSortDir}
+                groupBySet={scryfallGroupBySet}
+                onToggleGroupBySet={() => setScryfallGroupBySet((prev) => !prev)}
+                collapsedSets={collapsedSets}
+                setCollapsedSets={setCollapsedSets}
+                allSetsCollapsed={allSetsCollapsed}
+                setAllSetsCollapsed={setAllSetsCollapsed}
+                totalCount={
+                  mode === "prints"
+                    ? basePrints?.length || 0
+                    : query.trim()
+                      ? activeSearchData.cards.length
+                      : 0
+                }
+                filteredCount={
+                  mode === "prints"
+                    ? filteredPrints?.length || 0
+                    : filteredScryfallCards.length
+                }
+                searchMode={scryfallSearchMode}
+                setSearchMode={setScryfallSearchMode}
+                hideSearchModeSelector={mode === "prints"}
+              />
+            )
           )}
 
           {hasResults || hasResultsButFiltered ? (
@@ -949,7 +1092,7 @@ export function CardArtContent({
                     onClick={
                       artSource === "mpc"
                         ? mpcData.clearFilters
-                        : () => setScryfallSetFilters(new Set())
+                        : () => isPokemon ? setPokemonSetFilters(new Set()) : setScryfallSetFilters(new Set())
                     }
                     className="mb-2"
                   >
@@ -974,7 +1117,7 @@ export function CardArtContent({
                     selectedFace={selectedFace}
                   />
                 ) : artSource === "scryfall" ? (
-                  scryfallGroupBySet ? (
+                  (isPokemon ? pokemonGroupBySet : scryfallGroupBySet) ? (
                     /* Grouped by Set */
                     <div className="flex flex-col gap-4">
                       {(() => {
@@ -998,20 +1141,24 @@ export function CardArtContent({
                         // 1. Favorites First
                         // 2. Then by Sort Preference (Date or Name)
                         // 3. Then alphabetical by set code as tiebreaker
+                        const activeFavSets = isPokemon ? favoritePokemonSets : favoriteScryfallSets;
+                        const activeSortByGrouped = isPokemon ? pokemonSortBy : scryfallSortBy;
+                        const activeSortDirGrouped = isPokemon ? pokemonSortDir : scryfallSortDir;
+
                         const sortedGroups = Array.from(groups.entries()).sort(
                           (a, b) => {
                             const codeA = a[0];
                             const codeB = b[0];
 
                             // Favorites check
-                            const isFavA = favoriteScryfallSets.includes(codeA);
-                            const isFavB = favoriteScryfallSets.includes(codeB);
+                            const isFavA = activeFavSets.includes(codeA);
+                            const isFavB = activeFavSets.includes(codeB);
 
                             if (isFavA && !isFavB) return -1;
                             if (!isFavA && isFavB) return 1;
 
                             // If both favorite or both not favorite, use sort preference
-                            if (scryfallSortBy === "released") {
+                            if (activeSortByGrouped === "released") {
                               const setA = allScryfallSets.get(codeA);
                               const setB = allScryfallSets.get(codeB);
                               const dateA = setA?.released_at
@@ -1021,18 +1168,20 @@ export function CardArtContent({
                                 ? new Date(setB.released_at).getTime()
                                 : 0;
                               const dateComparison =
-                                scryfallSortDir === "asc"
+                                activeSortDirGrouped === "asc"
                                   ? dateA - dateB
                                   : dateB - dateA;
                               if (dateComparison !== 0) return dateComparison;
                             } else {
                               // Sort by Set Name
-                              const nameA =
-                                allScryfallSets.get(codeA)?.name || codeA;
-                              const nameB =
-                                allScryfallSets.get(codeB)?.name || codeB;
+                              const nameA = isPokemon
+                                ? (pokemonSetNames.get(codeA) || codeA)
+                                : (allScryfallSets.get(codeA)?.name || codeA);
+                              const nameB = isPokemon
+                                ? (pokemonSetNames.get(codeB) || codeB)
+                                : (allScryfallSets.get(codeB)?.name || codeB);
                               const nameComparison = nameA.localeCompare(nameB);
-                              return scryfallSortDir === "asc"
+                              return activeSortDirGrouped === "asc"
                                 ? nameComparison
                                 : -nameComparison;
                             }
@@ -1042,7 +1191,10 @@ export function CardArtContent({
                         );
 
                         return sortedGroups.map(([setCode, items]) => {
-                          const setInfo = allScryfallSets.get(setCode);
+                          const setInfo = isPokemon ? null : allScryfallSets.get(setCode);
+                          const displayName = isPokemon
+                            ? (pokemonSetNames.get(setCode) || setCode.toUpperCase())
+                            : (setInfo?.name || setCode.toUpperCase());
                           return (
                             <div
                               key={setCode}
@@ -1051,10 +1203,10 @@ export function CardArtContent({
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => toggleSetCollapse(setCode)}
+                                onClick={() => activeToggleSetCollapse(setCode)}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ")
-                                    toggleSetCollapse(setCode);
+                                    activeToggleSetCollapse(setCode);
                                 }}
                                 className="w-full flex items-center justify-between px-4 py-3 bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-900 transition-colors cursor-pointer"
                               >
@@ -1062,20 +1214,24 @@ export function CardArtContent({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      toggleFavoriteScryfallSet(setCode);
+                                      if (isPokemon) {
+                                        useUserPreferencesStore.getState().toggleFavoritePokemonSet(setCode);
+                                      } else {
+                                        toggleFavoriteScryfallSet(setCode);
+                                      }
                                     }}
                                     className="p-1 hover:text-yellow-500 transition-colors"
                                     title={
-                                      favoriteScryfallSets.includes(setCode)
+                                      activeFavSets.includes(setCode)
                                         ? "Remove from favorites"
                                         : "Add to favorites"
                                     }
                                   >
                                     <Star
-                                      className={`w-4 h-4 ${favoriteScryfallSets.includes(setCode) ? "fill-yellow-400 text-yellow-400" : "text-gray-400"}`}
+                                      className={`w-4 h-4 ${activeFavSets.includes(setCode) ? "fill-yellow-400 text-yellow-400" : "text-gray-400"}`}
                                     />
                                   </button>
-                                  {setInfo?.icon_svg_uri && (
+                                  {!isPokemon && setInfo?.icon_svg_uri && (
                                     <img
                                       src={setInfo.icon_svg_uri}
                                       alt=""
@@ -1083,7 +1239,7 @@ export function CardArtContent({
                                     />
                                   )}
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {setInfo?.name || setCode.toUpperCase()}
+                                    {displayName}
                                   </span>
                                   <span className="text-xs text-gray-500 ml-2">
                                     ({setCode.toUpperCase()})
@@ -1094,14 +1250,14 @@ export function CardArtContent({
                                     {items.length} card
                                     {items.length !== 1 ? "s" : ""}
                                   </span>
-                                  {collapsedSets.has(setCode) ? (
+                                  {activeCollapsedSets.has(setCode) ? (
                                     <ChevronRight className="w-4 h-4" />
                                   ) : (
                                     <ChevronDown className="w-4 h-4" />
                                   )}
                                 </span>
                               </div>
-                              {!collapsedSets.has(setCode) && (
+                              {!activeCollapsedSets.has(setCode) && (
                                 <div className="p-4">
                                   <CardGrid cardSize={cardSize}>
                                     {items.map((item, idx) => {

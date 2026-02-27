@@ -12,8 +12,8 @@ export interface ScryfallFilterProps {
     availableSets: Set<string>;
     selectedSets: Set<string>;
     onSelectSet: (setCodes: Set<string>) => void;
-    sortBy: "name" | "released";
-    setSortBy: (sort: "name" | "released") => void;
+    sortBy: string;
+    setSortBy: (sort: string) => void;
     sortDir: "asc" | "desc";
     setSortDir: (dir: "asc" | "desc") => void;
     groupBySet: boolean;
@@ -27,6 +27,7 @@ export interface ScryfallFilterProps {
     searchMode: "cards" | "prints";
     setSearchMode: (mode: "cards" | "prints") => void;
     hideSearchModeSelector?: boolean;
+    externalSetCodes?: boolean;
 }
 
 interface DisplayScryfallSet extends ScryfallSet {
@@ -76,8 +77,8 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
     const favoriteScryfallSort = preferences?.favoriteScryfallSort || null;
 
 
-    // Load Scryfall Sets
     useEffect(() => {
+        if (props.externalSetCodes) return;
         if (allSets.length === 0) {
             let mounted = true;
             const loadSets = async () => {
@@ -96,7 +97,7 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
                 mounted = false;
             };
         }
-    }, [allSets.length]);
+    }, [allSets.length, props.externalSetCodes]);
 
     const { availableSets, selectedSets, sortBy, sortDir } = props;
 
@@ -217,13 +218,13 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
                 hasAny: hasAnyFavorites,
                 onToggle: handleToggleAllFavorites,
             }}
-            sort={{
+            sort={props.externalSetCodes ? undefined : {
                 options: [
                     { value: "released", label: "Release Date" },
                     { value: "name", label: "Set Name" },
                 ],
                 value: props.sortBy,
-                onChange: (val) => props.setSortBy(val as "name" | "released"),
+                onChange: (val) => props.setSortBy(val),
                 dir: props.sortDir,
                 onDirChange: props.setSortDir,
                 favoriteSortValue: favoriteScryfallSort,
@@ -339,6 +340,33 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
                 {isSetsLoading ? (
                     <div className="p-4 text-center text-gray-500 text-sm">
                         Loading sets...
+                    </div>
+                ) : props.externalSetCodes ? (
+                    <div className="max-h-60 overflow-y-auto">
+                        {Array.from(props.availableSets)
+                            .filter((code) => !setSearchQuery || code.toLowerCase().includes(setSearchQuery.toLowerCase()))
+                            .sort()
+                            .map((code) => (
+                                <label
+                                    key={code}
+                                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-600 cursor-pointer"
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={props.selectedSets.has(code)}
+                                        onChange={() => {
+                                            const next = new Set(props.selectedSets);
+                                            if (next.has(code)) next.delete(code);
+                                            else next.add(code);
+                                            props.onSelectSet(next);
+                                        }}
+                                        className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
+                                    />
+                                    <span className="text-sm text-gray-900 dark:text-white">
+                                        {code.toUpperCase()}
+                                    </span>
+                                </label>
+                            ))}
                     </div>
                 ) : (
                     <div className="max-h-60 overflow-y-auto">

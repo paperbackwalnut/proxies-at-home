@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { useMemo, useCallback } from "react";
 import type { CardOption } from "@/types";
 import { extractAvailableFilters } from "@/helpers/sortAndFilterUtils";
+import { getTcgConfig } from "@/config/tcgConfig";
 
 // Collapsible section component with persisted state
 interface FilterSectionProps {
@@ -84,6 +85,9 @@ function FilterSection({ id, title, children, defaultOpen = true, activeCount = 
 
 
 export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
+    const activeTcg = useSettingsStore((state) => state.activeTcg ?? 'mtg');
+    const cfg = getTcgConfig(activeTcg);
+
     const sortBy = useSettingsStore((state) => state.sortBy);
     const setSortBy = useSettingsStore((state) => state.setSortBy);
     const sortOrder = useSettingsStore((state) => state.sortOrder);
@@ -115,10 +119,30 @@ export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
     const cardsFromDb = useMemo(() => cards ?? cardsFromQuery ?? [], [cards, cardsFromQuery]);
 
     // Extract unique card types and categories from loaded cards
-    const { types: availableTypes, categories: availableCategories } = useMemo(() => {
+    const { types: rawAvailableTypes, categories: availableCategories } = useMemo(() => {
         if (!cardsFromDb || cardsFromDb.length === 0) return { types: [], categories: [] };
         return extractAvailableFilters(cardsFromDb);
     }, [cardsFromDb]);
+
+    const POKEMON_CARD_TYPES = ["Pokemon", "Trainer", "Energy"];
+    const MTG_COLOR_CODES = new Set(["W", "U", "B", "R", "G", "C", "M"]);
+
+    const availableTypes = cfg.filters.energyType
+        ? rawAvailableTypes.filter(t => POKEMON_CARD_TYPES.includes(t))
+        : rawAvailableTypes;
+
+    const availableEnergyTypes = useMemo(() => {
+        if (!cfg.filters.energyType || !cardsFromDb || cardsFromDb.length === 0) return [];
+        const types = new Set<string>();
+        for (const card of cardsFromDb) {
+            if (card.colors) {
+                for (const c of card.colors) {
+                    if (!MTG_COLOR_CODES.has(c)) types.add(c);
+                }
+            }
+        }
+        return Array.from(types).sort();
+    }, [cfg.filters.energyType, cardsFromDb]);
 
     const toggleManaCost = (cost: number) => {
         if (filterManaCost.includes(cost)) {
@@ -181,14 +205,12 @@ export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
                     <Select
                         className="flex-1"
                         value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as "manual" | "name" | "type" | "cmc" | "color")}
+                        onChange={(e) => setSortBy(e.target.value as "manual" | "name" | "type" | "cmc" | "color" | "rarity")}
                     >
-                        <option value="manual">Manual</option>
-                        <option value="name">Name</option>
-                        <option value="type">Type</option>
-                        <option value="cmc">Mana Value</option>
-                        <option value="color">Color</option>
-                        <option value="rarity">Rarity</option>
+                        {cfg.sortOptions.map((opt) => {
+                            if (opt.value === 'color' && cfg.filters.energyType && availableEnergyTypes.length === 0) return null;
+                            return <option key={opt.value} value={opt.value}>{opt.label}</option>;
+                        })}
                     </Select>
                     <Button
                         color="gray"
@@ -223,8 +245,8 @@ export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
                 </FilterSection>
             )}
 
-            {/* Deck Categories Filter (Archidekt only) */}
-            {availableCategories.length > 0 && (
+            {/* Deck Categories Filter (Archidekt only, config-gated) */}
+            {cfg.filters.categories && availableCategories.length > 0 && (
                 <FilterSection id="deckCategories" title="Deck Categories" activeCount={filterCategories.length} onClear={() => setFilterCategories([])}>
                     <div className="grid grid-cols-[repeat(auto-fit,minmax(80px,1fr))] gap-1.5">
                         {availableCategories.map((cat) => (
@@ -246,51 +268,73 @@ export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
 
 
 
-            {/* Mana Cost Filter */}
-            <FilterSection id="manaValue" title="Mana Value" activeCount={filterManaCost.length} onClear={() => setFilterManaCost([])}>
-                <div className="flex flex-wrap gap-1 my-1">
-                    {manaCosts.map((cost) => (
-                        <div
-                            key={cost}
-                            onClick={() => toggleManaCost(cost)}
-                            className={`
-w-8 h-8 flex items-center justify-center rounded-full border cursor-pointer select-none transition-colors
-                                ${filterManaCost.includes(cost)
-                                    ? "bg-blue-600 text-white border-blue-700 font-bold"
-                                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
-                                }
+            {/* Mana Cost Filter — config-gated */}
+            {cfg.filters.manaValue && (
+                <FilterSection id="manaValue" title="Mana Value" activeCount={filterManaCost.length} onClear={() => setFilterManaCost([])}>
+                    <div className="flex flex-wrap gap-1 my-1">
+                        {manaCosts.map((cost) => (
+                            <div
+                                key={cost}
+                                onClick={() => toggleManaCost(cost)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-full border cursor-pointer select-none transition-colors
+                                    ${filterManaCost.includes(cost)
+                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                        : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                    }
 `}
-                        >
-                            {cost === 7 ? "7+" : cost}
-                        </div>
-                    ))}
-                </div>
-            </FilterSection>
+                            >
+                                {cost === 7 ? "7+" : cost}
+                            </div>
+                        ))}
+                    </div>
+                </FilterSection>
+            )}
 
-            {/* Color Filter */}
-            <FilterSection id="colors" title="Colors" activeCount={filterColors.length} onClear={() => setFilterColors([])}>
-                <div className="flex flex-wrap gap-2 my-1">
-                    {colors.map((c) => (
-                        <div
-                            key={c.id}
-                            onClick={() => toggleColor(c.id)}
-                            className={`
-rounded-full cursor-pointer select-none transition-all
-                                ${filterColors.includes(c.id)
-                                    ? "scale-110 opacity-100"
-                                    : "opacity-50 hover:opacity-100 hover:scale-105 grayscale hover:grayscale-0"
-                                }
-`}
-                            title={c.label}
-                        >
-                            <ManaIcon symbol={c.id} size={32} />
-                        </div>
-                    ))}
-                </div>
-            </FilterSection>
+            {/* Color Filter — config-gated */}
+            {cfg.filters.colors && (
+                <FilterSection id="colors" title="Colors" activeCount={filterColors.length} onClear={() => setFilterColors([])}>
+                    <div className="flex flex-wrap gap-2 my-1">
+                        {colors.map((c) => (
+                            <div
+                                key={c.id}
+                                onClick={() => toggleColor(c.id)}
+                                className={`rounded-full cursor-pointer select-none transition-all
+                                    ${filterColors.includes(c.id)
+                                        ? "scale-110 opacity-100"
+                                        : "opacity-50 hover:opacity-100 hover:scale-105 grayscale hover:grayscale-0"
+                                    }`}
+                                title={c.label}
+                            >
+                                <ManaIcon symbol={c.id} size={32} />
+                            </div>
+                        ))}
+                    </div>
+                </FilterSection>
+            )}
+
+            {/* Energy Type Filter — config-gated (only shown if any cards have energy type data) */}
+            {cfg.filters.energyType && availableEnergyTypes.length > 0 && (
+                <FilterSection id="energyType" title="Energy Type" activeCount={filterColors.length} onClear={() => setFilterColors([])}>
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(72px,1fr))] gap-1.5">
+                        {availableEnergyTypes.map((type) => (
+                            <button
+                                key={type}
+                                onClick={() => toggleColor(type)}
+                                className={`px-2.5 py-1 text-xs rounded-full transition-colors cursor-pointer select-none border
+                                    ${filterColors.includes(type)
+                                        ? "bg-yellow-500 text-white border-yellow-600"
+                                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    }`}
+                            >
+                                {type}
+                            </button>
+                        ))}
+                    </div>
+                </FilterSection>
+            )}
 
             {/* Match Type Toggle */}
-            <div className="flex items-center justify-between">
+            {cfg.filters.matchType && <div className="flex items-center justify-between">
                 <Label>Match Type</Label>
                 <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-1">
                     <button
@@ -312,7 +356,7 @@ rounded-full cursor-pointer select-none transition-all
                         Exact
                     </button>
                 </div>
-            </div>
+            </div>}
 
             {/* Clear Filters */}
             {hasActiveFilters && (

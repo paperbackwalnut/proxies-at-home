@@ -6,15 +6,20 @@ import {
   ScryfallFilterBar,
   type ScryfallFilterProps,
 } from "./ScryfallFilterBar";
+import {
+  PokemonFilterBar,
+  type PokemonFilterProps,
+} from "./PokemonFilterBar";
 import { UploadLibraryFilterBar, type UploadLibraryFilterProps } from "./UploadLibraryFilterBar";
-export type { MpcFilterProps, ScryfallFilterProps, UploadLibraryFilterProps };
+export type { MpcFilterProps, ScryfallFilterProps, PokemonFilterProps, UploadLibraryFilterProps };
 export type CardArtFilterBarProps =
   | MpcFilterProps
   | ScryfallFilterProps
+  | PokemonFilterProps
   | UploadLibraryFilterProps;
 
 /**
- * Unified filter bar for MPC, Scryfall, and Upload Library.
+ * Unified filter bar for MPC, Scryfall, Pokemon/TCGdex, and Upload Library.
  * Delegates to specific sub-components based on `mode`.
  */
 export function CardArtFilterBar(props: CardArtFilterBarProps) {
@@ -26,6 +31,10 @@ export function CardArtFilterBar(props: CardArtFilterBarProps) {
 
   if (mode === "scryfall") {
     return <ScryfallFilterBar {...(props as ScryfallFilterProps)} />;
+  }
+
+  if (mode === "pokemon") {
+    return <PokemonFilterBar {...(props as PokemonFilterProps)} />;
   }
 
   if (mode === "upload-library") {

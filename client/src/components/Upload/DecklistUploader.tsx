@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Button, Modal, ModalBody, ModalHeader, Textarea } from "flowbite-react";
+import { Button, Modal, ModalBody, ModalHeader, Select, Textarea } from "flowbite-react";
 import { ExternalLink, Search, Sparkles } from "lucide-react";
 import { parseDeckList } from "@/helpers/importParsers";
+import { TCG_ORDER, getTcgConfig } from "@/config/tcgConfig";
 import type { ImportIntent } from "@/helpers/importParsers";
 import { addRemoteImage } from "@/helpers/dbUtils";
 import { db } from "@/db";
@@ -26,6 +27,8 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
 
     const setLoadingTask = useLoadingStore((state) => state.setLoadingTask);
     const preferredArtSource = useSettingsStore((s) => s.preferredArtSource);
+    const activeTcg = useSettingsStore((s) => s.activeTcg);
+    const setActiveTcg = useSettingsStore((s) => s.setActiveTcg);
     const clearAllCardsAndImages = useCardsStore((state) => state.clearAllCardsAndImages);
     const { processCards, cancel: cancelCardFetch } = useCardImport({
         onComplete: () => {
@@ -173,28 +176,32 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
 
     return (
         <div className={`space-y-4 ${mobile ? 'landscape:flex landscape:flex-col landscape:h-full landscape:space-y-0 landscape:gap-4' : ''}`}>
+            <h6 className="font-medium dark:text-white">
+                TCG
+                <Select value={activeTcg} onChange={(e) => setActiveTcg(e.target.value)}>
+                    {TCG_ORDER.map((tcgId) => (
+                        <option key={tcgId} value={tcgId}>{getTcgConfig(tcgId).label}</option>
+                    ))}
+                </Select>
+            </h6>
+
             <div className={`space-y-1 ${mobile ? 'landscape:flex-1 landscape:flex landscape:flex-col' : ''}`}>
                 <h6 className="font-medium dark:text-white">
                     Add Cards (
-                    {preferredArtSource === 'mpc' ? (
-                        <a
-                            href="https://mpcfill.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline hover:text-blue-600 dark:hover:text-blue-400"
-                        >
-                            MPC Autofill
-                            <ExternalLink className="inline-block size-4 ml-1" />
+                    {activeTcg === 'pokemon' ? (
+                        <a href="https://tcgdex.dev" target="_blank" rel="noopener noreferrer"
+                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                            TCGdex<ExternalLink className="inline-block size-4 ml-1" />
+                        </a>
+                    ) : preferredArtSource === 'mpc' ? (
+                        <a href="https://mpcfill.com" target="_blank" rel="noopener noreferrer"
+                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                            MPC Autofill<ExternalLink className="inline-block size-4 ml-1" />
                         </a>
                     ) : (
-                        <a
-                            href="https://scryfall.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="underline hover:text-blue-600 dark:hover:text-blue-400"
-                        >
-                            Scryfall
-                            <ExternalLink className="inline-block size-4 ml-1" />
+                        <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer"
+                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                            Scryfall<ExternalLink className="inline-block size-4 ml-1" />
                         </a>
                     )}
                     )
@@ -202,7 +209,7 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
 
                 <Textarea
                     className={`h-64 ${mobile ? 'landscape:flex-1 landscape:[&::-webkit-scrollbar]:hidden landscape:[-ms-overflow-style:none] landscape:[scrollbar-width:none]' : ''} resize-none text-base p-3`}
-                    placeholder={`1x Sol Ring\n2x Counterspell\nFor specific art include set / CN\neg. Strionic Resonator (lcc)\nor Repurposing Bay (dft) 380`}
+                    placeholder={getTcgConfig(activeTcg).decklistPlaceholder}
                     value={deckText}
                     onChange={(e) => setDeckText(e.target.value)}
                     onKeyDown={(e) => {
@@ -253,7 +260,7 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
                     onClose={() => setIsAdvancedSearchOpen(false)}
                     onSelectCard={handleAddCard}
                     keepOpenOnAdd={true}
-                    initialSource={preferredArtSource}
+                    initialSource={activeTcg === 'pokemon' ? 'scryfall' : preferredArtSource}
                 />
             )}
 

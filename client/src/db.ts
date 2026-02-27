@@ -6,6 +6,7 @@ import { generateUUID } from './helpers/uuid';
 export const ImageSource = {
   MPC: 'mpc',
   Scryfall: 'scryfall',
+  TCGdex: 'tcgdex',
   UploadLibrary: 'upload-library',
   Cardback: 'cardback'
 } as const;
@@ -156,6 +157,9 @@ export interface UserPreferences {
   favoriteScryfallSort?: 'name' | 'released' | null;
   favoriteScryfallGroupBySet?: boolean;
   favoriteScryfallSearchMode?: 'cards' | 'prints' | null;
+  favoritePokemonSets?: string[];
+  favoritePokemonSort?: 'name' | 'released' | null;
+  favoritePokemonGroupBySet?: boolean;
   // Global Upload Library Preferences
   uploadLibrarySort?: 'name' | 'date' | 'type' | null;
   uploadLibrarySortDirection?: 'asc' | 'desc';

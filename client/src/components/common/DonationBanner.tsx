@@ -9,18 +9,16 @@ export function DonationBanner() {
 
   const handleDismiss = () => {
     setHiding(true);
-    setTimeout(() => setDismissed(true), 300);
+    setTimeout(() => setDismissed(true), 200);
   };
 
   return (
     <div
-      className="flex items-center justify-between gap-3 px-4 text-sm text-white shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
+      className="flex items-center justify-between gap-3 px-4 text-sm text-white shrink-0 overflow-hidden transition-opacity duration-200 ease-in-out"
       style={{
         backgroundColor: '#13c269',
-        maxHeight: hiding ? '0' : '48px',
-        paddingTop: hiding ? '0' : '',
-        paddingBottom: hiding ? '0' : '',
         opacity: hiding ? 0 : 1,
+        pointerEvents: hiding ? 'none' : undefined,
       }}
     >
       <div className="flex items-center gap-2 min-w-0 py-1.5">

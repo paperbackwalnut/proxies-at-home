@@ -1,4 +1,4 @@
-import { changeCardArtwork, createLinkedBackCard } from "@/helpers/dbUtils";
+import { changeCardArtwork, createLinkedBackCard, addRemoteImage } from "@/helpers/dbUtils";
 import { parseImageIdFromUrl } from "@/helpers/imageHelper";
 import {
   getMpcAutofillImageUrl,
@@ -37,7 +37,7 @@ import {
   fetchCardWithPrints,
   fetchCardBySetAndNumber,
 } from "@/helpers/scryfallApi";
-import { db } from "@/db";
+import { db, ImageSource } from "@/db";
 import { AdvancedSearch } from "./AdvancedSearch";
 import {
   getAllCardbacks,
@@ -109,6 +109,8 @@ export function ArtworkModal() {
   const setDefaultCardbackId = useSettingsStore(
     (state) => state.setDefaultCardbackId
   );
+  const activeTcg = useSettingsStore((state) => state.activeTcg ?? 'mtg');
+  const isPokemon = activeTcg === 'pokemon';
 
   if (isModalOpen && modalCard?.uuid !== lastOpenCardUuid) {
     setLastOpenCardUuid(modalCard?.uuid);
@@ -130,6 +132,9 @@ export function ArtworkModal() {
       } else {
         newSource = "scryfall";
       }
+    }
+    if (useSettingsStore.getState().activeTcg === 'pokemon') {
+      newSource = 'scryfall';
     }
     setArtSource(newSource);
   }
@@ -495,6 +500,18 @@ export function ArtworkModal() {
     });
 
     setAppliedImageUrl(newImageUrl);
+
+    // Pokemon mode: apply image URL directly — no Scryfall lookup needed
+    if (isPokemon && newImageUrl) {
+      const imageId = await addRemoteImage([newImageUrl], 1, ImageSource.TCGdex);
+      if (imageId) {
+        await applyArtworkToCards({
+          targetImageId: imageId,
+          cardName: newCardName,
+        });
+      }
+      return;
+    }
 
     const isReplacing = !!previewCardData;
     const newImageId = parseImageIdFromUrl(newImageUrl);

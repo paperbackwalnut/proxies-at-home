@@ -31,12 +31,12 @@ type PersistableSettings = Omit<SettingsStore,
     | 'setDarkenMode' | 'setDarkenContrast' | 'setDarkenEdgeWidth' | 'setDarkenAmount' | 'setDarkenBrightness' | 'setDarkenAutoDetect'
     | 'setGuideColor' | 'setGuideWidth' | 'setZoom' | 'setCardSpacingMm'
     | 'setCardPositionX' | 'setCardPositionY' | 'setUseCustomBackOffset' | 'setCardBackPositionX' | 'setCardBackPositionY'
-    | 'setPerCardBackOffset' | 'clearPerCardBackOffsets'
+    | 'setPerCardBackOffset' | 'bulkSetPerCardBackOffsets' | 'clearPerCardBackOffsets'
     | 'setDpi' | 'setCutLineStyle' | 'setPerCardGuideStyle' | 'setGuidePlacement' | 'setCutGuideLengthMm' | 'setGlobalLanguage'
     | 'setRegistrationMarks' | 'setRegistrationMarksPortrait'
     | 'setSortBy' | 'setSortOrder' | 'setFilterManaCost' | 'setFilterColors' | 'setFilterTypes' | 'setFilterCategories' | 'setFilterFeatures'
     | 'setFilterMatchType' | 'setDecklistSortAlpha' | 'setShowProcessingToasts' | 'setDefaultCardbackId' | 'setExportMode'
-    | 'setAutoImportTokens' | 'setMpcFuzzySearch' | 'setPreferredArtSource'
+    | 'setAutoImportTokens' | 'setMpcFuzzySearch' | 'setPreferredArtSource' | 'setActiveTcg'
     | 'hasHydrated'
 >;
 

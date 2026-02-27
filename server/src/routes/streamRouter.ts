@@ -1,9 +1,99 @@
 import express, { type Request, type Response } from "express";
+import axios from "axios";
 import { batchFetchCards, lookupCardFromBatch, getCardsWithImagesForCardInfo, type ScryfallApiCard } from "../utils/getCardImagesPaged.js";
 import { normalizeCardInfos } from "../utils/cardUtils.js";
 import { debugLog } from "../utils/debug.js";
 import { extractTokenParts } from "../utils/tokenUtils.js";
-import { type ScryfallCard } from "../../../shared/types.js";
+import { type ScryfallCard, type CardInfo } from "../../../shared/types.js";
+
+const tcgdexApi = (lang: string) => `https://api.tcgdex.net/v2/${lang}`;
+
+interface TcgdexCardBrief {
+  id: string;
+  localId: string;
+  name: string;
+  image?: string;
+}
+
+interface TcgdexCardDetail {
+  id: string;
+  localId: string;
+  name: string;
+  image?: string;
+  rarity?: string;
+  category?: string;   
+  types?: string[];    
+}
+
+/**
+ * Search TCGdex for a single card by name and return a ScryfallCard-compatible object.
+ * Fetches full card detail to get category (type_line) and energy types (colors).
+ * Returns null if not found.
+ */
+async function lookupPokemonCard(cardInfo: CardInfo, lang = "en"): Promise<ScryfallCard | null> {
+  const api = tcgdexApi(lang);
+  try {
+    let cardName = cardInfo.name.trim();
+    let localId: string | undefined = cardInfo.number;
+
+    // Parse Pokemon collector number formats from the card name:
+    //   "Mewtwo 059/159"  → name="Mewtwo", localId="059"
+    //   "Mewtwo 059"      → name="Mewtwo", localId="059"
+    if (!localId) {
+      const numSlash = cardName.match(/^(.+?)\s+(\d{1,4})\/\d+\s*$/);
+      const numOnly  = cardName.match(/^(.+?)\s+(\d{3,4})\s*$/); 
+      const m = numSlash ?? numOnly;
+      if (m) {
+        cardName = m[1].trim();
+        localId = m[2];
+      }
+    }
+
+    // Step 1: Search by name (and localId if available) to find the card id
+    const searchParams: Record<string, string> = { name: cardName };
+    if (localId) searchParams.localId = localId;
+
+    const searchResponse = await axios.get<TcgdexCardBrief[]>(`${api}/cards`, {
+      params: searchParams,
+    });
+    const cards = searchResponse.data || [];
+    if (cards.length === 0) return null;
+
+    const nameLower = cardName.toLowerCase();
+    const withImage = cards.filter(c => c.image);
+    if (withImage.length === 0) return null;
+    const brief = withImage.find(c => c.name.toLowerCase() === nameLower) ?? withImage[0];
+
+    const dashIdx = brief.id.lastIndexOf("-");
+    const setCode = dashIdx >= 0 ? brief.id.slice(0, dashIdx) : brief.id;
+    const cardNumber = dashIdx >= 0 ? brief.id.slice(dashIdx + 1) : brief.localId;
+
+    // Step 2: Fetch full card detail to get category, energy types, and rarity
+    let category: string | undefined;
+    let energyTypes: string[] | undefined;
+    let rarity: string | undefined;
+    try {
+      const detailResponse = await axios.get<TcgdexCardDetail>(`${api}/cards/${brief.id}`);
+      category = detailResponse.data.category;
+      energyTypes = detailResponse.data.types;
+      rarity = detailResponse.data.rarity;
+    } catch {
+    }
+
+    return {
+      name: brief.name,
+      set: setCode,
+      number: cardNumber,
+      imageUrls: [`${brief.image}/high.webp`],
+      lang,
+      rarity,                     
+      type_line: category,       
+      colors: energyTypes,       
+    };
+  } catch {
+    return null;
+  }
+}
 
 const streamRouter = express.Router();
 
@@ -173,6 +263,32 @@ streamRouter.post("/cards", async (req: Request, res: Response) => {
     res.write(`event: handshake\ndata: ${JSON.stringify({ total, cardArt })}\n\n`);
 
     if (isClosed || total === 0) {
+      res.write("event: done\ndata: {}\n\n");
+      clearInterval(keepAliveInterval);
+      res.end();
+      return;
+    }
+
+    // 4b. Pokemon (TCGdex) path
+    if (req.body.tcg === 'pokemon') {
+      let processed = 0;
+      for (const ci of cardQueries) {
+        if (isClosed) break;
+        processed++;
+        try {
+          const card = await lookupPokemonCard(ci, language);
+          if (card) {
+            res.write(`event: card-found\ndata: ${JSON.stringify(card)}\n\n`);
+          } else {
+            res.write(`event: card-error\ndata: ${JSON.stringify({ query: ci, error: "Card not found on TCGdex." })}\n\n`);
+          }
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          res.write(`event: card-error\ndata: ${JSON.stringify({ query: ci, error: msg })}\n\n`);
+        } finally {
+          res.write(`event: progress\ndata: ${JSON.stringify({ processed, total })}\n\n`);
+        }
+      }
       res.write("event: done\ndata: {}\n\n");
       clearInterval(keepAliveInterval);
       res.end();
