@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 import { SelectDropdown } from "..";
 import { SharedFilterLayout } from "./SharedFilterLayout";
 import { useUserPreferencesStore } from "@/store";
+import { getTcgPrefs } from "@/store/userPreferences";
 import { fetchPokemonSets, type PokemonSet } from "@/helpers/tcgdexApi";
 
 export interface PokemonFilterProps {
@@ -49,11 +50,13 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
     const setFavoritePokemonSort = useUserPreferencesStore((s) => s.setFavoritePokemonSort);
     const setFavoritePokemonGroupBySet = useUserPreferencesStore((s) => s.setFavoritePokemonGroupBySet);
 
+    const tcgPrefs = useMemo(() => getTcgPrefs(preferences, "pokemon"), [preferences]);
+
     const favoritePokemonSets = useMemo(
-        () => new Set(preferences?.favoritePokemonSets || []),
-        [preferences?.favoritePokemonSets]
+        () => new Set<string>(tcgPrefs.favoriteSets || []),
+        [tcgPrefs.favoriteSets]
     );
-    const favoritePokemonSort = preferences?.favoritePokemonSort || null;
+    const favoritePokemonSort = tcgPrefs.favoriteSort || null;
 
     const { availableSets, selectedSets, sortBy, sortDir } = props;
 
@@ -73,7 +76,7 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
         return map;
     }, [allSets]);
 
-    const getSetName = (code: string) => setNameMap.get(code) || code.toUpperCase();
+    const getSetName = React.useCallback((code: string) => setNameMap.get(code) || code.toUpperCase(), [setNameMap]);
 
     const displayData = useMemo(() => {
         const allCodes = new Set<string>();
@@ -112,7 +115,7 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
             });
 
         return { displaySets };
-    }, [availableSets, selectedSets, favoritePokemonSets, setSearchQuery, sortBy, sortDir, setNameMap]);
+    }, [availableSets, selectedSets, favoritePokemonSets, setSearchQuery, sortBy, sortDir, getSetName, setNameMap]);
 
     useEffect(() => {
         if (!displayData) return;
@@ -174,9 +177,9 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
             viewOptions={{
                 groupBy: props.groupBySet,
                 onToggleGroupBy: props.onToggleGroupBySet,
-                favoriteGroupBy: !!preferences?.favoritePokemonGroupBySet,
+                favoriteGroupBy: !!tcgPrefs.favoriteGroupBySet,
                 onToggleFavoriteGroupBy: () =>
-                    setFavoritePokemonGroupBySet(!preferences?.favoritePokemonGroupBySet),
+                    setFavoritePokemonGroupBySet(!tcgPrefs.favoriteGroupBySet),
                 isCollapsed: props.allSetsCollapsed,
                 onToggleCollapse: () => {
                     if (props.allSetsCollapsed) {
@@ -192,11 +195,10 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
             extraControls={
                 <button
                     onClick={props.onToggleExactMatch}
-                    className={`h-10 px-3 flex items-center gap-1.5 rounded-md border text-sm whitespace-nowrap transition-colors flex-shrink-0 ${
-                        props.exactMatch
-                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                            : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
-                    }`}
+                    className={`h-10 px-3 flex items-center gap-1.5 rounded-md border text-sm whitespace-nowrap transition-colors flex-shrink-0 ${props.exactMatch
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600"
+                        }`}
                     title={props.exactMatch ? "Exact match on — only exact name matches shown" : "Exact match off — all substring matches shown"}
                 >
                     {props.exactMatch ? "Exact" : "Fuzzy"}
@@ -303,20 +305,18 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
                                     }
                                 >
                                     <Star
-                                        className={`w-3.5 h-3.5 ${
-                                            favoritePokemonSets.has(set.code)
-                                                ? "fill-yellow-400 text-yellow-400"
-                                                : "text-gray-400"
-                                        }`}
+                                        className={`w-3.5 h-3.5 ${favoritePokemonSets.has(set.code)
+                                            ? "fill-yellow-400 text-yellow-400"
+                                            : "text-gray-400"
+                                            }`}
                                     />
                                 </button>
 
                                 <label
-                                    className={`flex items-center gap-2 flex-1 min-w-0 ${
-                                        set.isAvailable
-                                            ? "cursor-pointer"
-                                            : "opacity-50 cursor-not-allowed"
-                                    }`}
+                                    className={`flex items-center gap-2 flex-1 min-w-0 ${set.isAvailable
+                                        ? "cursor-pointer"
+                                        : "opacity-50 cursor-not-allowed"
+                                        }`}
                                     title={
                                         !set.isAvailable
                                             ? "No cards from this set in current results"
@@ -336,11 +336,10 @@ export function PokemonFilterBar(props: PokemonFilterProps) {
                                         className="rounded border-gray-300 dark:border-gray-500 text-blue-600 focus:ring-blue-500 bg-white dark:bg-gray-700"
                                     />
                                     <span
-                                        className={`text-sm truncate ${
-                                            set.isAvailable
-                                                ? "text-gray-900 dark:text-white"
-                                                : "text-gray-400 dark:text-gray-500"
-                                        }`}
+                                        className={`text-sm truncate ${set.isAvailable
+                                            ? "text-gray-900 dark:text-white"
+                                            : "text-gray-400 dark:text-gray-500"
+                                            }`}
                                     >
                                         {set.name}{" "}
                                         <span className="text-gray-500 text-xs">

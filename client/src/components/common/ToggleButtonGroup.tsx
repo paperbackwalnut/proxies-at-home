@@ -39,10 +39,10 @@ export function ToggleButtonGroup<T extends string>({
 }: ToggleButtonGroupProps<T>) {
     // Container classes based on orientation
     // For vertical mode, use auto-rows-fr to ensure equal button sizes
-    const colsClass = ({ 2: 'grid-cols-2', 3: 'grid-cols-3' } as Record<number, string>)[options.length] || 'grid-cols-2';
+    const colsClass = ({ 1: 'grid grid-cols-1', 2: 'grid grid-cols-2', 3: 'grid grid-cols-3' } as Record<number, string>)[options.length] || 'grid grid-cols-2';
     const containerClasses = vertical
         ? 'grid grid-cols-1 auto-rows-fr rounded-lg bg-gray-100 dark:bg-gray-600 p-0.5 w-auto'
-        : `grid ${colsClass} rounded-lg bg-gray-100 dark:bg-gray-600 p-0.5 h-10`;
+        : `${colsClass} rounded-lg bg-gray-100 dark:bg-gray-600 p-0.5 h-10`;
 
     // Button classes based on orientation
     const buttonOrientationClasses = vertical
@@ -82,12 +82,12 @@ export function ToggleButtonGroup<T extends string>({
                         }}
                         className={
                             `flex-1 justify-center ${buttonOrientationClasses} px-3 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-1.5 whitespace-nowrap select-none
-                            ${isSelected
+                            ${isSelected || options.length === 1
                                 ? getSelectedClasses(option)
                                 : 'text-gray-500 dark:text-gray-300 hover:text-gray-700 dark:hover:text-white'
                             }`
                         }
-                        style={isSelected ? getSelectedStyle(option) : undefined}
+                        style={isSelected || options.length === 1 ? getSelectedStyle(option) : undefined}
                     >
                         {option.icon}
                         {option.label}

@@ -379,6 +379,7 @@ router.get("/prints", async (req: Request, res: Response) => {
         // Extract prints with full metadata (including faceName for DFCs)
         const prints: Array<{
             imageUrl: string;
+            thumbnailUrl?: string;
             set: string;
             number: string;
             rarity?: string;
@@ -391,6 +392,7 @@ router.get("/prints", async (req: Request, res: Response) => {
                 // Non-DFC card
                 prints.push({
                     imageUrl: card.image_uris.png,
+                    thumbnailUrl: card.image_uris.normal || card.image_uris.large,
                     set: card.set ?? "",
                     number: card.collector_number ?? "",
                     rarity: card.rarity,
@@ -403,6 +405,7 @@ router.get("/prints", async (req: Request, res: Response) => {
                     if (face.image_uris?.png) {
                         prints.push({
                             imageUrl: face.image_uris.png,
+                            thumbnailUrl: face.image_uris.normal || face.image_uris.large,
                             set: card.set ?? "",
                             number: card.collector_number ?? "",
                             rarity: card.rarity,

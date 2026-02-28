@@ -5,8 +5,8 @@
  */
 import { generateUUID } from "./uuid";
 
-import { db, ImageSource, type Image } from "../db";
-import type { CardOption } from "../../../shared/types";
+import { db, type Image } from "@/db";
+import { ImageSource, type CardOption } from "../../../shared/types";
 import {
     deleteCard,
     duplicateCard,
@@ -21,7 +21,7 @@ import {
 import { useUndoRedoStore } from "@/store/undoRedo";
 import { useProjectStore } from "@/store/projectStore";
 import { useSettingsStore } from "@/store/settings";
-import { BUILTIN_CARDBACKS, isCardbackId } from "./cardbackLibrary";
+import { BUILTIN_CARDBACKS } from "./cardbackLibrary";
 
 /**
  * Deletes a card with undo support.
@@ -107,7 +107,7 @@ export async function undoableDeleteCardsBatch(uuids: string[]): Promise<void> {
         // 2. Calculate image ref decrements
         const imageRefDecrements = new Map<string, number>();
         for (const card of allCardsToDelete.values()) {
-            if (card.imageId && !isCardbackId(card.imageId)) {
+            if (card.imageId && card.source !== ImageSource.Cardback) {
                 imageRefDecrements.set(card.imageId, (imageRefDecrements.get(card.imageId) || 0) + 1);
             }
         }
@@ -161,7 +161,7 @@ export async function undoableDeleteCardsBatch(uuids: string[]): Promise<void> {
             const imageRefIncrements = new Map<string, { count: number, data?: Image }>();
 
             for (const { card, imageData } of cardImageData.values()) {
-                if (card.imageId && !isCardbackId(card.imageId)) {
+                if (card.imageId && card.source !== ImageSource.Cardback) {
                     const entry = imageRefIncrements.get(card.imageId) || { count: 0, data: imageData };
                     entry.count++;
                     imageRefIncrements.set(card.imageId, entry);
@@ -200,7 +200,7 @@ export async function undoableDeleteCardsBatch(uuids: string[]): Promise<void> {
                 // Re-calculate image ref decrements from the captured 'cardImageData' to be robust
                 const imageRefDecrements = new Map<string, number>();
                 for (const { card } of cardImageData.values()) {
-                    if (card.imageId && !isCardbackId(card.imageId)) {
+                    if (card.imageId && card.source !== ImageSource.Cardback) {
                         imageRefDecrements.set(card.imageId, (imageRefDecrements.get(card.imageId) || 0) + 1);
                     }
                 }
@@ -326,7 +326,7 @@ export async function undoableDuplicateCardsBatch(uuids: string[]): Promise<stri
                         linkedBackId: undefined,
                     };
 
-                    if (backCard.imageId && !isCardbackId(backCard.imageId)) {
+                    if (backCard.imageId && backCard.source !== ImageSource.Cardback) {
                         imageRefIncrements.set(backCard.imageId, (imageRefIncrements.get(backCard.imageId) || 0) + 1);
                     }
                 }
@@ -340,7 +340,7 @@ export async function undoableDuplicateCardsBatch(uuids: string[]): Promise<stri
                 linkedFrontId: undefined,
             };
 
-            if (original.imageId && !isCardbackId(original.imageId)) {
+            if (original.imageId && original.source !== ImageSource.Cardback) {
                 imageRefIncrements.set(original.imageId, (imageRefIncrements.get(original.imageId) || 0) + 1);
             }
 
@@ -426,7 +426,7 @@ export async function undoableDuplicateCardsBatch(uuids: string[]): Promise<stri
 
                 const imageRefDecrements = new Map<string, number>();
                 for (const card of validCards) {
-                    if (card.imageId && !isCardbackId(card.imageId)) {
+                    if (card.imageId && card.source !== ImageSource.Cardback) {
                         imageRefDecrements.set(card.imageId, (imageRefDecrements.get(card.imageId) || 0) + 1);
                     }
                 }
@@ -536,7 +536,7 @@ export async function undoableAddCards(
                 for (const card of allCards) {
                     if (card?.imageId) {
                         // Only track refs for non-cardback images
-                        if (!isCardbackId(card.imageId)) {
+                        if (card.source !== ImageSource.Cardback) {
                             imageRefDecrements.set(card.imageId, (imageRefDecrements.get(card.imageId) || 0) + 1);
                         }
                     }
@@ -841,12 +841,7 @@ export async function undoableUpdateCardBleedSettings(
                 generatedBleedMode: undefined,
                 generatedHasBuiltInBleed: undefined,
             };
-            // Update the correct table based on ID type
-            if (isCardbackId(imageId)) {
-                await db.cardbacks.update(imageId, invalidation);
-            } else {
                 await db.images.update(imageId, invalidation);
-            }
         }
     });
 
@@ -867,10 +862,11 @@ export async function undoableUpdateCardBleedSettings(
                 }
                 // Invalidate image cache to trigger regeneration
                 for (const imageId of imageIds) {
-                    await db.images.update(imageId, {
+                    const invalidation = {
                         generatedBleedMode: undefined,
                         generatedHasBuiltInBleed: undefined,
-                    });
+                    };
+                    await db.images.update(imageId, invalidation);
                 }
             });
         },
@@ -892,10 +888,11 @@ export async function undoableUpdateCardBleedSettings(
                 );
                 // Invalidate image cache to trigger regeneration
                 for (const imageId of imageIds) {
-                    await db.images.update(imageId, {
+                    const invalidation = {
                         generatedBleedMode: undefined,
                         generatedHasBuiltInBleed: undefined,
-                    });
+                    };
+                    await db.images.update(imageId, invalidation);
                 }
             });
         },
@@ -1058,7 +1055,7 @@ export async function undoableChangeCardback(
                             const backCard = await db.cards.get(frontCard.linkedBackId);
                             if (backCard) {
                                 // Decrement image ref for non-cardback images
-                                if (backCard.imageId && !isCardbackId(backCard.imageId)) {
+                                if (backCard?.imageId && backCard.source !== ImageSource.Cardback) {
                                     const image = await db.images.get(backCard.imageId);
                                     if (image && image.refCount > 1) {
                                         await db.images.update(backCard.imageId, { refCount: image.refCount - 1 });

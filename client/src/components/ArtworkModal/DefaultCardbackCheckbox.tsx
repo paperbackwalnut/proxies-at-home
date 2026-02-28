@@ -1,16 +1,15 @@
-import { Checkbox, Label } from "flowbite-react";
+import { Checkbox } from "flowbite-react";
 import { db } from "@/db";
 import { useSelectionStore } from "@/store/selection";
 import { undoableChangeCardback } from "@/helpers/undoableActions";
 import type { CardOption } from "../../../../shared/types";
-import type { CardbackOption } from "@/helpers/cardbackLibrary";
+import { getAllCardbacks } from "@/helpers/cardbackLibrary";
+import { useLiveQuery } from "dexie-react-hooks";
 
 export interface DefaultCardbackCheckboxProps {
     linkedBackCard: CardOption;
     modalCard: CardOption | null;
     defaultCardbackId: string;
-    cardbackOptions: CardbackOption[];
-    onClose: () => void;
 }
 
 /**
@@ -21,14 +20,15 @@ export function DefaultCardbackCheckbox({
     linkedBackCard,
     modalCard,
     defaultCardbackId,
-    cardbackOptions,
-    onClose,
 }: DefaultCardbackCheckboxProps) {
+    const cardbackOptions = useLiveQuery(() => getAllCardbacks(), []);
+
     const handleChange = async (checked: boolean) => {
         const selectedCards = useSelectionStore.getState().selectedCards;
         const isMultiSelect = selectedCards.size > 1 && modalCard && selectedCards.has(modalCard.uuid);
 
         if (checked) {
+            if (!cardbackOptions) return;
             const defaultCb = cardbackOptions.find(cb => cb.id === defaultCardbackId);
             if (!defaultCb) return;
 
@@ -71,8 +71,6 @@ export function DefaultCardbackCheckbox({
             if (modalCard?.uuid) {
                 useSelectionStore.getState().setFlipped([modalCard.uuid], true);
             }
-
-            onClose();
         } else {
             if (isMultiSelect) {
                 const selectedUuids = Array.from(selectedCards);
@@ -97,18 +95,16 @@ export function DefaultCardbackCheckbox({
     };
 
     return (
-        <div className="col-span-full mb-2">
-            <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                <Checkbox
-                    id="use-default-cardback"
-                    checked={linkedBackCard.usesDefaultCardback ?? false}
-                    onChange={(e) => handleChange(e.target.checked)}
-                    className="size-5"
-                />
-                <Label htmlFor="use-default-cardback" className="cursor-pointer dark:text-white">
-                    Use default cardback (follows when default changes)
-                </Label>
-            </div>
-        </div>
+        <label htmlFor="use-default-cardback" className="flex items-center gap-2 cursor-pointer">
+            <Checkbox
+                id="use-default-cardback"
+                checked={linkedBackCard.usesDefaultCardback ?? false}
+                onChange={(e) => handleChange(e.target.checked)}
+                className="size-5"
+            />
+            <span className="text-base dark:text-white">
+                Use default cardback (follows when default changes)
+            </span>
+        </label>
     );
 }

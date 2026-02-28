@@ -201,7 +201,7 @@ export function CardEditorModal({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, card.uuid, backCard?.uuid]);
 
-    const [isApplying, setIsApplying] = useState(false);
+
     const [zoom, setZoom] = useState(1);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
@@ -363,33 +363,39 @@ export function CardEditorModal({
     }, []);
 
     const handleApply = useCallback(async (shouldClose = false) => {
-        setIsApplying(true);
         try {
             const frontOverrides = paramsToOverrides(frontParams);
-
-            // In multi-select mode, apply to all selected cards
             if (selectedCardUuids && selectedCardUuids.length > 1 && onApplyToSelected) {
                 onApplyToSelected(selectedCardUuids, frontOverrides);
             } else {
-                // Apply front overrides to front card
                 onApply(card.uuid, frontOverrides);
-
-                // Apply back overrides to back card (if exists)
                 if (backCard) {
                     const backOverrides = paramsToOverrides(backParams);
                     onApply(backCard.uuid, backOverrides);
                 }
             }
-
             if (shouldClose) {
                 onClose();
             }
         } catch (err) {
             console.error('[CardEditorModal] Apply failed:', err);
-        } finally {
-            setIsApplying(false);
         }
     }, [card.uuid, backCard, frontParams, backParams, onApply, onApplyToSelected, selectedCardUuids, onClose]);
+    const autoSaveMountedRef = useRef(false);
+    useEffect(() => {
+        if (!isOpen) {
+            autoSaveMountedRef.current = false;
+            return;
+        }
+        if (!autoSaveMountedRef.current) {
+            autoSaveMountedRef.current = true;
+            return;
+        }
+        const timer = setTimeout(() => {
+            void handleApply(false);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [frontParams, backParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleApplyToAll = useCallback(() => {
         // Use current face's params for "Apply to All"
@@ -740,36 +746,14 @@ export function CardEditorModal({
             <ModalFooter>
                 <div className="card-editor-footer">
                     <Button color="gray" onClick={onClose}>
-                        {selectedCount ? 'Close' : 'Cancel'}
+                        Close
                     </Button>
-
                     <div className="card-editor-footer-right">
                         <Button
                             color="light"
                             onClick={handleApplyToAll}
                         >
                             Apply to All
-                        </Button>
-
-                        <Button
-                            color="green"
-                            onClick={() => handleApply(false)}
-                            disabled={isApplying}
-                        >
-                            {selectedCount ? `Apply to ${selectedCount}` : 'Apply'}
-                        </Button>
-
-                        <Button
-                            color="blue"
-                            onClick={() => handleApply(true)}
-                            disabled={isApplying}
-                        >
-                            {isApplying
-                                ? 'Applying...'
-                                : selectedCount
-                                    ? `Apply to ${selectedCount} & Close`
-                                    : 'Apply & Close'
-                            }
                         </Button>
                     </div>
                 </div>

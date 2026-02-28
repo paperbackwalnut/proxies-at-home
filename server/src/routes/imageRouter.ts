@@ -632,7 +632,6 @@ imageRouter.get("/mpc", async (req: Request, res: Response) => {
 const CARDBACK_MAP: Record<string, string> = {
   'mtg': 'mtg.png',
   'proxxied': 'proxxied.png',
-  'classic-dots': 'classic-dots.png',
 };
 
 const cardbacksDir = resolveCardbacksDir();

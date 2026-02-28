@@ -82,8 +82,8 @@ describe("useFilteredAndSortedCards", () => {
             expect(getCardTypes("Legendary Planeswalker — Jace")).toContain("Planeswalker");
         });
 
-        it("should return empty array for unknown type", () => {
-            expect(getCardTypes("Unknown Type")).toEqual([]);
+        it("should return the entire string as type if unknown type", () => {
+            expect(getCardTypes("Unknown Type")).toEqual(["Unknown Type"]);
         });
 
         it("should return empty array for empty string", () => {

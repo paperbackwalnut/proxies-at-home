@@ -1,6 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { searchMpcAutofill, type MpcAutofillCard } from "@/helpers/mpcAutofillApi";
+import {
+    searchMpcIdentifiers,
+    fetchMpcCardDetails,
+    fetchPrebuiltCardbacks,
+    type MpcAutofillCard
+} from "@/helpers/mpcAutofillApi";
 import { buildMpcSearchParams, TOKEN_TYPE_COLLISIONS, type MpcCardType } from "@/helpers/tokenQueryUtils";
+import { parseMpcCardName } from "@/helpers/mpcUtils";
 import { useSettingsStore, useUserPreferencesStore } from "@/store";
 
 export interface MpcFilterState {
@@ -13,14 +19,24 @@ export interface MpcFilterState {
 }
 
 export interface MpcSearchResult {
-    /** Raw search results (unfiltered) */
+    /** Array of matched MPC cards */
     cards: MpcAutofillCard[];
-    /** Filtered and sorted results */
+    /** Filtered array of matched MPC cards */
     filteredCards: MpcAutofillCard[];
-    /** Whether a search is currently in progress */
+    /** Total number of cards matching the search before filtering */
+    totalCards: number;
+    /** Whether a fetch is currently in progress (initial search) */
     isLoading: boolean;
-    /** Whether at least one search has been performed */
+    /** Whether a batch load is in progress (infinite scroll) */
+    isLoadingMore: boolean;
+    /** Whether more results can be loaded */
+    hasMore: boolean;
+    /** Whether an error occurred during search */
+    error: Error | null;
+    /** Whether at least one fetch has been performed */
     hasSearched: boolean;
+    /** The exact name that was last successfully searched or initialized */
+    lastSearchedName: string;
     /** Whether there are any results */
     hasResults: boolean;
     /** Filter state and setters */
@@ -41,6 +57,8 @@ export interface MpcSearchResult {
     toggleTag: (tag: string) => void;
     toggleDpi: (dpi: number) => void;
     clearFilters: () => void;
+    /** Load the next batch of results */
+    loadMore: () => void;
     /** Count of active filters */
     activeFilterCount: number;
 }
@@ -76,8 +94,17 @@ export function useMpcSearch(
 
     // Search state
     const [cards, setCards] = useState<MpcAutofillCard[]>([]);
+    const [allIdentifiers, setAllIdentifiers] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
+
+    // Pagination/Infinite Scroll config
+    const cursorRef = useRef(0);
+    const hasMore = useMemo(() => allIdentifiers.length > cards.length, [allIdentifiers.length, cards.length]);
+
+    // Determined card type and browse mode
+    const isCardbackBrowse = useMemo(() => !query?.trim() && (overrideCardType === 'CARDBACK'), [query, overrideCardType]);
 
     // Filter state
     const [minDpi, setMinDpi] = useState<number>(() => favoriteMpcDpi ?? 800);
@@ -98,20 +125,17 @@ export function useMpcSearch(
     const lastSearchParams = useRef<{ name: string; fuzzy: boolean; cardType: MpcCardType; isCollision?: boolean } | null>(null);
     const lastSearchedName = useRef<string>("");
 
-    // Search handler
+    // --- Search logic ---
+
     const performSearch = useCallback(async () => {
-        if (!query || !query.trim()) return;
+        if (!isCardbackBrowse && (!query || !query.trim())) return;
 
-        // Parse query for token prefix and determine card type
+        // Determine card type and collision status
         const { query: searchQuery, cardType: detectedType } = buildMpcSearchParams(query, cardData);
-        // Use override if provided, otherwise use detected type
         const effectiveCardType = overrideCardType ?? detectedType;
-
-        // Check if query matches a token/type collision (e.g., "treasure", "blood", "clue")
-        // For these, search BOTH CARD and TOKEN and merge results
         const isCollision = TOKEN_TYPE_COLLISIONS.has(searchQuery.toLowerCase()) && effectiveCardType === 'CARD';
 
-        // Skip if same search params (use ref to avoid dependency on cards state)
+        // Check deduplication
         if (lastSearchParams.current?.name === searchQuery &&
             lastSearchParams.current?.fuzzy === mpcFuzzySearch &&
             lastSearchParams.current?.cardType === effectiveCardType &&
@@ -119,38 +143,85 @@ export function useMpcSearch(
 
         lastSearchParams.current = { name: searchQuery, fuzzy: mpcFuzzySearch, cardType: effectiveCardType, isCollision };
         lastSearchedName.current = query;
+
         setIsLoading(true);
-        setHasSearched(true);
+        setError(null);
 
         try {
-            if (isCollision) {
+            let ids: string[] = [];
+            let allBatchMap: Record<string, MpcAutofillCard> = {};
+
+            if (isCardbackBrowse) {
+                allBatchMap = await fetchPrebuiltCardbacks();
+                ids = Object.keys(allBatchMap);
+            } else if (isCollision) {
                 // Dual search: get both regular cards and tokens for collision names
-                const [cardResults, tokenResults] = await Promise.all([
-                    searchMpcAutofill(searchQuery, 'CARD', mpcFuzzySearch),
-                    searchMpcAutofill(searchQuery, 'TOKEN', mpcFuzzySearch),
+                const [cardIds, tokenIds] = await Promise.all([
+                    searchMpcIdentifiers(searchQuery, 'CARD', mpcFuzzySearch),
+                    searchMpcIdentifiers(searchQuery, 'TOKEN', mpcFuzzySearch),
                 ]);
-                // Merge results (tokens first, then cards)
-                setCards([...tokenResults, ...cardResults]);
+                ids = [...tokenIds, ...cardIds];
             } else {
-                const results = await searchMpcAutofill(searchQuery, effectiveCardType, mpcFuzzySearch);
-                setCards(results);
+                ids = await searchMpcIdentifiers(searchQuery, effectiveCardType, mpcFuzzySearch);
             }
+
+            setAllIdentifiers(ids);
+            cursorRef.current = 0;
+
+            if (ids.length === 0) {
+                setCards([]);
+                return;
+            }
+
+            // Fetch ALL details immediately if not already fetched via prebuilt
+            if (!isCardbackBrowse) {
+                allBatchMap = await fetchMpcCardDetails(ids);
+            }
+
+            // Convert map to array and apply name parsing
+            const allCards = ids
+                .map(id => allBatchMap[id])
+                .filter(Boolean)
+                .map(card => ({
+                    ...card,
+                    name: parseMpcCardName(card.name, card.name)
+                }));
+
+            setCards(allCards);
+            cursorRef.current = ids.length;
         } catch (err) {
             console.error("MPC search error:", err);
+            setError(err instanceof Error ? err : new Error("Failed to search MPC Autofill"));
             setCards([]);
+            setAllIdentifiers([]);
         } finally {
             setIsLoading(false);
+            setHasSearched(true);
         }
-    }, [query, mpcFuzzySearch, cardData, overrideCardType]);
+    }, [query, isCardbackBrowse, mpcFuzzySearch, cardData, overrideCardType]);
+
+    // Infinite scroll is now a no-op since we fetch everything upfront
+    // Keeping the function signature to avoid breaking components
+    const loadMore = useCallback(async () => {
+        return;
+    }, []);
 
     // Auto-search effect
     useEffect(() => {
         // When query is empty, only reset if autoSearch is enabled AND we haven't already reset
         if (!query || !query.trim()) {
+            if (isCardbackBrowse) {
+                // Initial browse load for cardbacks
+                if (lastSearchedName.current !== "" || !hasSearched) {
+                    performSearch();
+                }
+                return;
+            }
+
             if (autoSearch && lastSearchedName.current !== "") {
-                setHasSearched(false);
                 setIsLoading(false);
                 setCards([]);
+                setAllIdentifiers([]);
                 lastSearchedName.current = "";
                 lastSearchParams.current = null;
             }
@@ -164,14 +235,14 @@ export function useMpcSearch(
         }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [autoSearch, query, performSearch]);
+    }, [autoSearch, query, isCardbackBrowse, hasSearched, performSearch]);
 
     // Re-search when fuzzy toggle changes
     useEffect(() => {
-        if (!hasSearched || !query || query !== lastSearchedName.current) return;
+        if (!hasSearched || !query || (query !== lastSearchedName.current && !isCardbackBrowse)) return;
         if (lastSearchParams.current?.fuzzy === mpcFuzzySearch) return;
         performSearch();
-    }, [mpcFuzzySearch, hasSearched, query, performSearch]);
+    }, [mpcFuzzySearch, hasSearched, query, isCardbackBrowse, performSearch]);
 
     // Filtered results
     const filteredCards = useMemo(() => {
@@ -297,9 +368,14 @@ export function useMpcSearch(
     return {
         cards,
         filteredCards,
+        totalCards: allIdentifiers.length,
         isLoading,
+        isLoadingMore: false,
+        hasMore,
+        error,
         hasSearched,
-        hasResults: cards.length > 0,
+        lastSearchedName: lastSearchedName.current,
+        hasResults: allIdentifiers.length > 0,
         filters: {
             minDpi,
             sourceFilters,
@@ -320,6 +396,7 @@ export function useMpcSearch(
         toggleTag,
         toggleDpi,
         clearFilters,
+        loadMore,
         activeFilterCount,
     };
 }

@@ -3,6 +3,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ArtSourceToggle } from './ArtSourceToggle';
 
+vi.mock('@/store/settings', () => ({
+    useSettingsStore: vi.fn(() => 'mtg'),
+}));
+
 describe('ArtSourceToggle', () => {
     it('renders Scryfall and MPC options by default', () => {
         render(<ArtSourceToggle value="scryfall" onChange={vi.fn()} />);

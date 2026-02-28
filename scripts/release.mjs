@@ -166,13 +166,13 @@ const runValidation = () => {
     success('Pre-release validation complete!');
 };
 
-// Get commits since last tag for changelog
-const getCommitsSinceLastTag = () => {
-    const lastTag = run('git describe --tags --abbrev=0', { silent: true, ignoreError: true });
-    const range = lastTag ? `${lastTag}..HEAD` : 'HEAD';
+// Get commits since last release for changelog
+const getCommitsSinceLastRelease = () => {
+    const lastReleaseCommit = run('git log --grep="^chore: bump version" -1 --format="%H"', { silent: true, ignoreError: true });
+    const range = lastReleaseCommit ? `${lastReleaseCommit}..HEAD` : 'HEAD';
     // Use --no-color to prevent ANSI codes from breaking regex parsing
     const commits = run(`git log ${range} --oneline --no-color`, { silent: true, ignoreError: true });
-    return { lastTag, commits: commits || '' };
+    return { lastReleaseCommit, commits: commits || '' };
 };
 
 // Analyze commits for conventional commit prefixes to suggest bump type
@@ -184,7 +184,6 @@ const analyzeCommits = (commits) => {
     let hasBreakingChange = false;
 
     // Regex patterns - allow optional prefix like [TESTING] or similar before type
-    const breakingPattern = /(?:^|\]\s*)(feat|fix|refactor|chore|docs|style|test|perf|ci|build)!:/i;
     const featPattern = /(?:^|\]\s*)feat(\(.+\))?:/i;
     const patchPattern = /(?:^|\]\s*)(fix|refactor|chore|docs|style|test|perf|ci|build)(\(.+\))?:/i;
 
@@ -192,8 +191,8 @@ const analyzeCommits = (commits) => {
         // Remove commit hash prefix
         const message = line.replace(/^[a-f0-9]+\s+/, '');
 
-        // Check for breaking changes
-        if (breakingPattern.test(message) || /BREAKING CHANGE/i.test(message)) {
+        // Check for explicit major release
+        if (/release:major/i.test(message)) {
             hasBreakingChange = true;
             counts.major++;
         }
@@ -277,11 +276,11 @@ const startReleaseNotesGeneration = (commits, version) => {
 
 // Interactive changelog prompt (accepts optional pre-started gemini promise)
 const getInteractiveChangelog = async (newVersion, geminiPromise = null) => {
-    const { lastTag, commits } = getCommitsSinceLastTag();
+    const { lastReleaseCommit, commits } = getCommitsSinceLastRelease();
 
     console.log('');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('  Commits since last release' + (lastTag ? ` (${lastTag})` : ''));
+    console.log('  Commits since last release' + (lastReleaseCommit ? ` (${lastReleaseCommit.substring(0, 7)})` : ''));
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     if (commits) {
         console.log(GRAY + commits + NC);
@@ -499,10 +498,50 @@ async function main() {
         error(`Invalid version format: ${explicitVersion}. Expected: X.Y.Z or X.Y.Z-prerelease`);
     }
 
-    // Get current version
+    // Get current version from package.json
     const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-    const currentVersion = pkg.version;
-    info(`Current version: ${currentVersion}`);
+    let currentVersion = pkg.version;
+    info(`package.json version: ${currentVersion}`);
+
+    // Determine if highest remote tag is newer than package.json
+    const remoteTagsOut = run('git ls-remote --tags origin "v*"', { silent: true, ignoreError: true });
+    if (remoteTagsOut) {
+        const tagLines = remoteTagsOut.split('\n');
+        const semverTags = tagLines
+            .map(line => {
+                const match = line.match(/refs\/tags\/(v\d+\.\d+\.\d+)$/);
+                return match ? match[1].substring(1) : null;
+            })
+            .filter(Boolean);
+
+        if (semverTags.length > 0) {
+            // Sort conceptually by version components
+            semverTags.sort((a, b) => {
+                const [aMajor, aMinor, aPatch] = a.split('.').map(Number);
+                const [bMajor, bMinor, bPatch] = b.split('.').map(Number);
+                if (aMajor !== bMajor) return aMajor - bMajor;
+                if (aMinor !== bMinor) return aMinor - bMinor;
+                return aPatch - bPatch;
+            });
+
+            const highestTag = semverTags[semverTags.length - 1];
+            const [tMajor, tMinor, tPatch] = highestTag.split('.').map(Number);
+            const [pMajor, pMinor, pPatch] = currentVersion.split('.').map(Number);
+
+            let useTag = false;
+            if (tMajor > pMajor) useTag = true;
+            else if (tMajor === pMajor && tMinor > pMinor) useTag = true;
+            else if (tMajor === pMajor && tMinor === pMinor && tPatch > pPatch) useTag = true;
+
+            if (useTag) {
+                // Highest remote tag is newer, use it as currentVersion
+                info(`Highest remote tag (v${highestTag}) is higher than package.json (${currentVersion}). Using tag as base.`);
+                currentVersion = highestTag;
+            }
+        }
+    }
+
+    info(`Base version for bump: ${currentVersion}`);
 
     // Calculate new version
     let newVersion;
@@ -529,7 +568,7 @@ async function main() {
             bumpType = isMajor ? 'major' : 'minor';
         } else {
             // Analyze commits for semantic versioning suggestion
-            const { commits: analysisCommits } = getCommitsSinceLastTag();
+            const { commits: analysisCommits } = getCommitsSinceLastRelease();
             const analysis = analyzeCommits(analysisCommits);
 
             console.log('');
@@ -572,7 +611,7 @@ async function main() {
     }
 
     // Start AI release notes generation early (runs in background during validation)
-    const { commits: changelogCommits } = getCommitsSinceLastTag();
+    const { commits: changelogCommits } = getCommitsSinceLastRelease();
     let geminiPromise = null;
     if (changelogCommits) {
         info('Starting AI release notes generation in background...');

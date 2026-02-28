@@ -1,4 +1,4 @@
-import { ImageSource } from '../db';
+import { ImageSource } from '@/types';
 import { DarkenMode } from '../../../shared/types';
 
 /**
@@ -10,13 +10,15 @@ export function getEffectiveGlobalDarkenMode(
     source: ImageSource | null,
     applyToScryfall: boolean,
     applyToMpc: boolean,
-    applyToUploads: boolean
+    applyToUploads: boolean,
+    applyToCardbacks: boolean
 ): typeof DarkenMode[keyof typeof DarkenMode] {
     if (!globalDarkenMode || globalDarkenMode === DarkenMode.None) return DarkenMode.None;
 
     if (source === ImageSource.Scryfall && !applyToScryfall) return DarkenMode.None;
     if (source === ImageSource.MPC && !applyToMpc) return DarkenMode.None;
     if (source === ImageSource.UploadLibrary && !applyToUploads) return DarkenMode.None;
+    if (source === ImageSource.Cardback && !applyToCardbacks) return DarkenMode.None;
 
     return globalDarkenMode;
 }

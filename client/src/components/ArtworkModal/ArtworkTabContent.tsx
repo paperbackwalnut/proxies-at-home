@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Button, Checkbox } from "flowbite-react";
 import { Search, Filter, Image, Settings } from "lucide-react";
-import { ToggleButtonGroup, CardGrid, ArtSourceToggle, FloatingZoomPanel, CardArtContent } from "../common";
+import { ToggleButtonGroup, ArtSourceToggle, FloatingZoomPanel, CardArtContent } from "../common";
 import type { ArtSource } from "../common/ArtSourceToggle";
 import type { UploadLibraryItem } from '@/helpers/uploadLibrary';
 import { CardbackLibrary } from "./CardbackLibrary";
-import type { CardOption, PrintInfo } from "../../../../shared/types";
-import { isCardbackId, type CardbackOption } from "@/helpers/cardbackLibrary";
+import { DefaultCardbackCheckbox } from "./DefaultCardbackCheckbox";
+import { ImageSource, type CardOption, type PrintInfo } from "../../../../shared/types";
 import type { MpcAutofillCard } from "@/helpers/mpcAutofillApi";
 
 /** SVG icon for the MTG cardback button */
@@ -32,19 +32,13 @@ export interface ArtworkTabContentProps {
     applyToAll: boolean;
     setApplyToAll: (val: boolean) => void;
     tabLabels: { front: string; back: string };
-    cardbackOptions: CardbackOption[];
-    setCardbackOptions: (opts: CardbackOption[]) => void;
     defaultCardbackId: string;
-    filteredImageUrls: string[] | undefined;
-    displayData: {
-        name?: string;
-        imageUrls: string[] | undefined;
-        prints?: PrintInfo[];
-        id: string | undefined;
-        // Single ID for sorting and highlighting - replaces selectedId + initialScryfallId
-        selectedArtId: string | undefined;
-        processedDisplayUrl: string | null;
-    };
+    hasUploadLibraryItems: boolean;
+    displayName?: string;
+    displayImageUrls?: string[];
+    displayPrints?: PrintInfo[];
+    displaySelectedArtId: string | undefined;
+    finalProcessedDisplayUrl: string | null;
     zoomLevel: number;
     onOpenSearch: () => void;
     onSelectCardback: (id: string, name: string) => void;
@@ -65,7 +59,7 @@ export interface ArtworkTabContentProps {
     setActiveTab?: (tab: 'artwork' | 'settings') => void;
     setSelectedFace?: (face: 'front' | 'back') => void;
     setZoomLevel?: (level: number) => void;
-    showUploadLibrary?: boolean;
+    showCardbackButtonProp?: boolean;
 }
 
 /**
@@ -83,11 +77,12 @@ export function ArtworkTabContent({
     applyToAll,
     setApplyToAll,
     tabLabels,
-    cardbackOptions,
-    setCardbackOptions,
     defaultCardbackId,
-    filteredImageUrls: _filteredImageUrls,
-    displayData,
+    hasUploadLibraryItems,
+    displayName,
+    displayPrints,
+    displaySelectedArtId,
+    finalProcessedDisplayUrl,
     zoomLevel,
     onOpenSearch,
     onSelectCardback,
@@ -104,7 +99,7 @@ export function ArtworkTabContent({
     setActiveTab,
     setSelectedFace,
     setZoomLevel,
-    showUploadLibrary,
+    showCardbackButtonProp,
 }: ArtworkTabContentProps) {
     const [mpcFiltersCollapsed, onMpcFiltersCollapsedChange] = useState(() => {
         // Default: Hidden on mobile (true), Visible on desktop (false)
@@ -118,8 +113,8 @@ export function ArtworkTabContent({
     // Update filter visibility on resize if needed (optional - skipping for now to respect user choice)
 
     // Determine content visibility
-    const isUsingCardbackLibrary = linkedBackCard?.imageId ? isCardbackId(linkedBackCard.imageId) : false;
-    const showCardbackButton = selectedFace === 'back' && !isDFC && linkedBackCard && !isUsingCardbackLibrary && !showCardbackLibrary;
+    const isUsingCardbackLibrary = linkedBackCard?.imageId ? (linkedBackCard.source === ImageSource.Cardback || linkedBackCard.imageId.startsWith('cardback_')) : false;
+    const showCardbackButton = showCardbackButtonProp !== undefined ? showCardbackButtonProp : (selectedFace === 'back' && !isDFC && linkedBackCard && !isUsingCardbackLibrary && !showCardbackLibrary);
     const showCardbackLibraryGrid = selectedFace === 'back' && !isDFC && !previewCardData && (!linkedBackCard || isUsingCardbackLibrary || showCardbackLibrary);
     const showArtworkGrid = selectedFace === 'front' || isDFC || (linkedBackCard && !isUsingCardbackLibrary && !showCardbackLibrary) || (selectedFace === 'back' && !!previewCardData);
 
@@ -144,6 +139,8 @@ export function ArtworkTabContent({
                                 setSelectedFace?.(val);
                                 if (val === 'back' && !linkedBackCard && !isDFC) {
                                     setShowCardbackLibrary(true);
+                                } else if (val === 'back' && linkedBackCard && isUsingCardbackLibrary) {
+                                    setShowCardbackLibrary(true);
                                 }
                             }}
                         />
@@ -162,42 +159,51 @@ export function ArtworkTabContent({
 
                 {/* Mobile Landscape Only: Cardback Button (Relocated) */}
                 {showCardbackButton && (
-                    <Button color="light" onClick={() => setShowCardbackLibrary(true)} title="Use a cardback from the library instead" className="w-full hidden max-lg:landscape:flex">
+                    <Button color="light" onClick={() => setShowCardbackLibrary(true)} title="Use a cardback from the library instead" className="w-full">
                         <CardbackIcon />
                         Use Cardback
                     </Button>
                 )}
 
 
-                <label className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox
-                        checked={applyToAll}
-                        onChange={(e) => setApplyToAll(e.target.checked)}
-                        className="size-5"
-                    />
-                    <span className="text-base dark:text-white">Apply to all cards named "{cardName}"</span>
-                </label>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                            checked={applyToAll}
+                            onChange={(e) => setApplyToAll(e.target.checked)}
+                            className="size-5"
+                            data-testid="apply-to-all-checkbox"
+                        />
+                        <span className="text-base dark:text-white">Apply to all cards named "{cardName}"</span>
+                    </label>
+
+                    {selectedFace === 'back' && linkedBackCard && (
+                        <div className="flex items-center gap-2">
+                            <DefaultCardbackCheckbox
+                                linkedBackCard={linkedBackCard}
+                                modalCard={modalCard}
+                                defaultCardbackId={defaultCardbackId}
+                            />
+                        </div>
+                    )}
+                </div>
             </header>
 
             {/* Content */}
             <main className="relative flex-1 pt-0 flex flex-col overflow-hidden min-h-0">
                 {showCardbackLibraryGrid && (
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden pt-0 p-6">
-                        <CardGrid>
-                            <CardbackLibrary
-                                cardbackOptions={cardbackOptions}
-                                setCardbackOptions={setCardbackOptions}
-                                linkedBackCard={linkedBackCard}
-                                modalCard={modalCard}
-                                defaultCardbackId={defaultCardbackId}
-                                onSelectCardback={onSelectCardback}
-                                onSetAsDefaultCardback={onSetAsDefaultCardback}
-                                onClose={onClose}
-                                onRequestDelete={onRequestDelete}
-                                onExecuteDelete={onExecuteDelete}
-                            />
-                        </CardGrid>
-                    </div>
+                    <CardbackLibrary
+                        linkedBackCard={linkedBackCard}
+                        modalCard={modalCard}
+                        defaultCardbackId={defaultCardbackId}
+                        onSelectCardback={onSelectCardback}
+                        onSetAsDefaultCardback={onSetAsDefaultCardback}
+                        onClose={onClose}
+                        onRequestDelete={onRequestDelete}
+                        onExecuteDelete={onExecuteDelete}
+                        cardSize={zoomLevel}
+                        filtersCollapsed={mpcFiltersCollapsed}
+                    />
                 )
                 }
 
@@ -207,16 +213,14 @@ export function ArtworkTabContent({
                             <CardArtContent
                                 artSource="scryfall"
                                 mode="prints"
-                                query={displayData.name || modalCard.name || ''}
-                                cardSize={zoomLevel}
-                                selectedArtId={displayData.selectedArtId}
-                                processedDisplayUrl={displayData.processedDisplayUrl}
-                                selectedFace={selectedFace}
+                                query={displayName || modalCard.name || ''}
+                                initialPrints={displayPrints}
+                                selectedArtId={displaySelectedArtId}
+                                processedDisplayUrl={finalProcessedDisplayUrl}
                                 onSelectCard={(name, url, print) => onSelectArtwork(url || '', name, print)}
                                 containerClassStyle="flex-1 h-full"
                                 isActive={artSource === 'scryfall'}
                                 cardTypeLine={modalCard.type_line}
-                                initialPrints={displayData.prints}
                                 filtersCollapsed={mpcFiltersCollapsed}
                                 onFilterCountChange={setActiveFilterCount}
                             />
@@ -230,12 +234,10 @@ export function ArtworkTabContent({
                         <div className={artSource === 'mpc' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
                             <CardArtContent
                                 artSource="mpc"
-                                query={displayData.name || modalCard.name || ''}
+                                query={displayName || modalCard.name || ''}
                                 cardSize={zoomLevel}
-                                selectedArtId={displayData.selectedArtId}
+                                selectedArtId={displaySelectedArtId}
                                 onSelectCard={(_name, url) => {
-                                    // For MPC, we need to use onSelectMpcArt callback
-                                    // but CardArtContent calls onSelectCard with name and url
                                     onSelectArtwork(url || '');
                                 }}
                                 onSelectMpcCard={onSelectMpcArt}
@@ -255,9 +257,8 @@ export function ArtworkTabContent({
                     <div className={artSource === 'upload-library' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
                         <CardArtContent
                             artSource="upload-library"
-                            query={displayData.name || modalCard.name || ''}
+                            query={displayName || modalCard.name || ''}
                             cardSize={zoomLevel}
-                            selectedArtId={displayData.selectedArtId}
                             onSelectCard={(_name, url) => onSelectArtwork(url || '')}
                             onUploadLibraryItemSelect={onSelectUploadLibraryArt}
                             containerClassStyle="flex-1 h-full"
@@ -269,7 +270,7 @@ export function ArtworkTabContent({
                     </div>
                 )}
                 {/* Floating Zoom Controls - Desktop only */}
-                {showArtworkGrid && setZoomLevel && (
+                {(showArtworkGrid || showCardbackLibraryGrid) && setZoomLevel && (
                     <FloatingZoomPanel
                         zoom={zoomLevel}
                         onZoomChange={setZoomLevel}
@@ -288,7 +289,7 @@ export function ArtworkTabContent({
                         <ArtSourceToggle
                             value={artSource}
                             onChange={setArtSource}
-                            showUploadLibrary={showUploadLibrary}
+                            showUploadLibrary={hasUploadLibraryItems}
                             className="w-full"
                         />
                     </div>
@@ -302,13 +303,13 @@ export function ArtworkTabContent({
                             <ArtSourceToggle
                                 value={artSource}
                                 onChange={setArtSource}
-                                showUploadLibrary={showUploadLibrary}
+                                showUploadLibrary={hasUploadLibraryItems}
                                 vertical={false}
                             />
                         </div>
                     )}
 
-                    {!showCardbackLibraryGrid && (
+                    {(showArtworkGrid || showCardbackLibraryGrid) && (
                         <button
                             onClick={() => onMpcFiltersCollapsedChange?.(!mpcFiltersCollapsed)}
                             className={`flex items-center justify-center h-10 w-10 rounded-lg border transition-colors ${mpcFiltersCollapsed

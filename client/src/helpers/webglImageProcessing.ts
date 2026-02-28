@@ -10,7 +10,7 @@ import {
     createQuadBuffer,
 } from "./webgl/webglUtils";
 import { VS_QUAD, FS_INIT, FS_STEP, FS_FINAL, FS_DIRECT } from "./webgl/shaders";
-import type { DarkenMode } from "../store/settings";
+import type { DarkenMode } from "@/types";
 import { darkenModeToInt } from "../components/CardCanvas/types";
 import { debugLog } from "./debug";
 import { CONSTANTS, MM_TO_PX } from "../constants/commonConstants";
@@ -670,7 +670,7 @@ export async function processCardImageWebGL(
         lowResCtx.imageSmoothingQuality = "high";
         lowResCtx.drawImage(canvas, 0, 0, displayWidth, displayHeight);
         // Use WebP for display blobs to save memory and improve performance (L6)
-        const displayBlob = await lowResCanvas.convertToBlob({ type: "image/webp", quality: 0.90 });
+        const displayBlob = await lowResCanvas.convertToBlob({ type: "image/webp", quality: 0.95 });
 
         return { exportBlob, displayBlob, darknessFactor };
     }
@@ -818,7 +818,7 @@ export async function processExistingBleedWebGL(
 
             blobs.set(mode, await canvas.convertToBlob({
                 type: mimeType,
-                quality: mimeType === "image/webp" ? 0.90 : undefined
+                quality: mimeType === "image/webp" ? 0.95 : undefined
             }));
         }
 

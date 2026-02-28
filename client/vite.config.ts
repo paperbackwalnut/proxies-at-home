@@ -25,6 +25,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@/types": path.resolve(__dirname, "../shared/types.ts"),
       "@": path.resolve(__dirname, "./src"),
     },
   },
@@ -111,7 +112,7 @@ export default defineConfig({
         },
       },
     },
-    // vendor-pixi is ~502KB which can't be split further
-    chunkSizeWarningLimit: 550,
+    // vendor-pixi is ~502KB which can't be split further. ProxyBuilderPage is ~551KB.
+    chunkSizeWarningLimit: 600,
   },
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
+import { ImageSource } from '../../../shared/types';
 import { useUserPreferencesStore } from "./userPreferences";
 import { db } from "../db";
 import { useSettingsStore } from "./settings";
@@ -12,11 +13,7 @@ vi.mock("../db", () => ({
             put: vi.fn(),
         },
     },
-    ImageSource: {
-        Scryfall: "scryfall",
-        MPC: "mpc",
-        UploadLibrary: "upload-library"
-    }
+    ImageSource,
 }));
 
 describe("useUserPreferencesStore", () => {

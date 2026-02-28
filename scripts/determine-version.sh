@@ -63,12 +63,12 @@ COMMIT_MSG=$(git log -1 --pretty=%B)
 echo "Latest commit message: $COMMIT_MSG"
 
 # Get all commit messages since last tag for scanning
-LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-if [ -n "$LAST_TAG" ]; then
-  echo "Scanning commits since $LAST_TAG..."
-  COMMIT_HISTORY=$(git log "$LAST_TAG"..HEAD --pretty=%B)
+LAST_RELEASE_COMMIT=$(git log --grep="^chore: bump version" -1 --format="%H" 2>/dev/null || echo "")
+if [ -n "$LAST_RELEASE_COMMIT" ]; then
+  echo "Scanning commits since $LAST_RELEASE_COMMIT..."
+  COMMIT_HISTORY=$(git log "$LAST_RELEASE_COMMIT"..HEAD --pretty=%B)
 else
-  echo "No previous tags found, scanning full history..."
+  echo "No previous release commit found, scanning full history..."
   COMMIT_HISTORY=$(git log --pretty=%B)
 fi
 
@@ -84,7 +84,33 @@ if [[ "$COMMIT_MSG" == *"chore: bump version"* ]]; then
    exit 0
 fi
 
+# Determine base version: use highest remote tag or package.json version
 CURRENT_VERSION=$(jq -r .version package.json)
+IFS='.' read -r P_MAJOR P_MINOR P_PATCH <<< "${CURRENT_VERSION%%-*}"
+
+# Check highest tag on remote
+REMOTE_TAGS=$(git ls-remote --tags origin v\* 2>/dev/null | awk -F/ '{print $3}' || echo "")
+if [ -n "$REMOTE_TAGS" ]; then
+    # Sort tags conceptually to find highest version components
+    # We parse the highest semver tag found
+    HIGHEST_TAG=$(echo "$REMOTE_TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//' | sort -V | tail -n 1)
+    if [ -n "$HIGHEST_TAG" ]; then
+        IFS='.' read -r T_MAJOR T_MINOR T_PATCH <<< "${HIGHEST_TAG%%-*}"
+        
+        # Compare versions
+        USE_TAG=false
+        if [ "$T_MAJOR" -gt "$P_MAJOR" ]; then USE_TAG=true
+        elif [ "$T_MAJOR" -eq "$P_MAJOR" ] && [ "$T_MINOR" -gt "$P_MINOR" ]; then USE_TAG=true
+        elif [ "$T_MAJOR" -eq "$P_MAJOR" ] && [ "$T_MINOR" -eq "$P_MINOR" ] && [ "$T_PATCH" -gt "$P_PATCH" ]; then USE_TAG=true
+        fi
+
+        if [ "$USE_TAG" = true ]; then
+            echo "Highest remote tag (v$HIGHEST_TAG) is higher than package.json ($CURRENT_VERSION). Using tag as base."
+            CURRENT_VERSION=$HIGHEST_TAG
+        fi
+    fi
+fi
+
 IFS='.' read -r MAJOR MINOR PATCH <<< "${CURRENT_VERSION%%-*}"
 
 SHOULD_RELEASE=false
@@ -93,7 +119,7 @@ UPDATE_STABLE=false
 # 1. Determine Version Bump
 # Tags use `release:<type>` format to avoid git stripping lines starting with #
 # Scan both commit message and PR body for release tags
-if echo "$SCAN_TEXT" | grep -qiE 'release:major|BREAKING CHANGE'; then
+if echo "$SCAN_TEXT" | grep -qiE 'release:major'; then
     echo "Major bump detected - Releasing"
     MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
     SHOULD_RELEASE=true

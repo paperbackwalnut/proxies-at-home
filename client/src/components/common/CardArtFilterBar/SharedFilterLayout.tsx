@@ -49,6 +49,8 @@ export interface SharedFilterLayoutProps {
         onClear: () => void;
     };
 
+    searchBar?: React.ReactNode;
+
     count?: {
         total?: number;
         filtered?: number;
@@ -64,6 +66,7 @@ export function SharedFilterLayout(props: SharedFilterLayoutProps) {
         viewOptions,
         extraControls,
         clear,
+        searchBar,
         count,
     } = props;
 
@@ -245,6 +248,13 @@ export function SharedFilterLayout(props: SharedFilterLayoutProps) {
                 >
                     <X className="w-5 h-5" strokeWidth={2.5} />
                 </button>
+            )}
+
+            {/* Search Bar */}
+            {searchBar && (
+                <div className="flex items-center flex-1 min-w-[200px]">
+                    {searchBar}
+                </div>
             )}
 
             {/* 7. Results Count */}

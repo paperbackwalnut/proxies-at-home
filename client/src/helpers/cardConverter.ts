@@ -1,11 +1,11 @@
 
-import type { CardOption, ScryfallCard } from "../../../shared/types";
+import { ImageSource, type CardOption, type ScryfallCard } from "../../../shared/types";
 import { addRemoteImage, createLinkedBackCardsBulk } from "./dbUtils";
 import { undoableAddCards } from "./undoableActions";
 
 export interface ResolvedCardData {
     cardsToAdd: (Omit<CardOption, "uuid" | "order"> & { order?: number; imageId?: string })[];
-    backCardTasks: { frontIndex: number; backImageId: string; backName: string }[];
+    backCardTasks: { frontIndex: number; backImageId: string; backName: string, source?: ImageSource }[];
 }
 
 /**
@@ -83,6 +83,7 @@ export async function convertScryfallToCardOptions(
             category,
             needsEnrichment: false,  // Scryfall data is complete
             projectId,
+            source: ImageSource.Scryfall,
         });
     }
 
@@ -95,7 +96,8 @@ export async function convertScryfallToCardOptions(
             backCardTasks.push({
                 frontIndex: i, // Index relative to cardsToAdd
                 backImageId,
-                backName: backFaceName || 'Back'
+                backName: backFaceName || 'Back',
+                source: ImageSource.Scryfall
             });
         }
     }
@@ -122,6 +124,7 @@ export async function persistResolvedCards(
                 frontUuid: added[task.frontIndex].uuid,
                 backImageId: task.backImageId,
                 backName: task.backName,
+                options: { source: task.source }
             }))
         );
     }

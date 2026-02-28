@@ -13,6 +13,8 @@ export interface ScryfallPrintsResult {
   hasSearched: boolean;
   /** Whether there are any results */
   hasResults: boolean;
+  /** The exact name that was last successfully searched or initialized */
+  lastSearchedName: string;
 }
 
 export interface UseScryfallPrintsOptions {
@@ -46,6 +48,13 @@ export function useScryfallPrints({
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentNameRef = useRef<string>("");
 
+  // Sync name ref if initial prints are provided or if disabled but query matches
+  useEffect(() => {
+    if (initialPrints && initialPrints.length > 0) {
+      currentNameRef.current = name.trim();
+    }
+  }, [initialPrints, name]);
+
   // Fetch effect
   useEffect(() => {
     // Don't fetch if disabled or empty name
@@ -57,6 +66,19 @@ export function useScryfallPrints({
 
     // Skip if same name requested
     if (currentNameRef.current === trimmedName && hasSearched) return;
+
+    // If initialPrints are provided for this specific name, use them immediately
+    if (initialPrints && initialPrints.length > 0) {
+      // Basic check: if initialPrints exist, they likely match the new name (since they are passed down together from the parent who resolved them)
+      // This prevents the "flash" of empty state when navigating to a card we already have prints for in the modal's `previewCardData`.
+      const doesInitialPrintsMatchName = initialPrints.length > 0;
+      if (doesInitialPrintsMatchName) {
+        setPrints(initialPrints);
+        setHasSearched(true);
+        currentNameRef.current = trimmedName;
+        return;
+      }
+    }
 
     const performFetch = async () => {
       currentNameRef.current = trimmedName;
@@ -164,5 +186,6 @@ export function useScryfallPrints({
     isLoading,
     hasSearched,
     hasResults: prints.length > 0,
+    lastSearchedName: currentNameRef.current,
   };
 }

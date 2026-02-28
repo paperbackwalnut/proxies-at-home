@@ -6,7 +6,8 @@ import { useSettingsStore } from "../store";
 import { findBestMpcMatches, parseMpcCardLogic } from "./mpcImportIntegration";
 import { API_BASE } from "../constants";
 import { CONSTANTS } from "@/constants/commonConstants";
-import { db, ImageSource } from "../db";
+import { db } from "../db";
+import { ImageSource } from '@/types';
 import { getMpcAutofillImageUrl } from "./mpcAutofillApi";
 import type { TcgId } from "@/config/tcgConfig";
 import { convertScryfallToCardOptions, persistResolvedCards } from "./cardConverter";
@@ -173,6 +174,7 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
                 ? { ...instance.overrides }
                 : {},
             projectId,
+            source: ImageSource.MPC,
         },
             instance.order
         ));
@@ -220,6 +222,7 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
             hasBuiltInBleed: cardback.hasBuiltInBleed ?? true,
             category: info.category,
             projectId,
+            source: ImageSource.Cardback,
         },
             instance.order
         ));
@@ -257,6 +260,7 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
                 isToken: info.isToken,
                 overrides: info.overrides, // Preserve overrides for share import
                 projectId,
+                source: ImageSource.MPC, // Placeholder for MPC or Scryfall
             },
                 instance.order
             ));
@@ -579,6 +583,7 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
                                     isToken: cardData.isToken,
                                     hasBuiltInBleed: false,
                                     needsEnrichment: false,
+                                    source: ImageSource.Scryfall,
                                 });
                             }
                         });
@@ -635,6 +640,7 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
                                     ...template,
                                     order: instance.order,
                                     ...(instanceImageId && { imageId: instanceImageId }),
+                                    source: ImageSource.Scryfall,
                                 });
 
                                 for (const task of templateBackTasks) {
@@ -666,9 +672,9 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
 }
 
 function createCardOption(
-    base: Partial<Omit<CardOption, "uuid" | "order"> & { imageId?: string }>,
+    base: Partial<Omit<CardOption, "uuid" | "order"> & { imageId?: string; source?: ImageSource }>,
     order?: number
-): Omit<CardOption, "uuid"> & { imageId?: string } {
+): Omit<CardOption, "uuid"> & { imageId?: string; source?: ImageSource } {
     const defaults = {
         set: undefined,
         number: undefined,
@@ -678,6 +684,7 @@ function createCardOption(
         type_line: "Card",
         rarity: "common",
         mana_cost: "",
+        source: undefined,
     };
 
     // Type assertion needed due to strict Omit/Partial overlap
@@ -685,5 +692,5 @@ function createCardOption(
         ...defaults,
         ...base,
         order: order ?? 0,
-    } as Omit<CardOption, "uuid"> & { imageId?: string };
+    } as Omit<CardOption, "uuid"> & { imageId?: string; source?: ImageSource };
 }

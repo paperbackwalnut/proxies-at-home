@@ -29,7 +29,7 @@ import {
   getUploadLibraryItems,
   type UploadLibraryItem,
 } from "@/helpers/uploadLibrary";
-import { ImageSource } from '@/db';
+import { ImageSource } from '@/types';
 import { UploadLibraryGrid } from '../Upload/UploadLibraryGrid';
 /**
  * Hook to maintain a stable sort key that only updates on specific triggers:
@@ -129,6 +129,8 @@ export interface CardArtContentProps {
   initialPrints?: PrintInfo[];
 }
 
+const EMPTY_ARRAY: string[] = [];
+
 /**
  * Unified card art content component for both Scryfall and MPC sources.
  * Handles search logic internally via hooks and provides identical layout structure.
@@ -178,7 +180,7 @@ export function CardArtContent({
 
   // Get favorites from user preferences store
   const favoriteScryfallSets = useUserPreferencesStore(
-    (s) => s.preferences?.favoriteScryfallSets || []
+    (s) => s.preferences?.favoriteScryfallSets || EMPTY_ARRAY
   );
   const toggleFavoriteScryfallSet = useUserPreferencesStore(
     (s) => s.toggleFavoriteScryfallSet
@@ -223,7 +225,7 @@ export function CardArtContent({
   const isPokemon = activeTcg === 'pokemon' && artSource === 'scryfall';
 
   const favoritePokemonSets = useUserPreferencesStore(
-    (s) => s.preferences?.favoritePokemonSets || []
+    (s) => s.preferences?.favoritePokemonSets || EMPTY_ARRAY
   );
   const [pokemonSetFilters, setPokemonSetFilters] = useState<Set<string>>(new Set());
   const hasInitializedPokemonFilters = useRef(false);
@@ -398,7 +400,7 @@ export function CardArtContent({
         setPokemonSetNames(map);
       });
     }
-  }, [artSource, isPokemon]);
+  }, [artSource, isPokemon, pokemonSetNames.size]);
 
   // Available Sets Logic
   // If browsing (empty query), allow selecting from ALL sets
@@ -467,18 +469,6 @@ export function CardArtContent({
   // Scryfall Collapse State
   const [collapsedSets, setCollapsedSets] = useState<Set<string>>(new Set());
   const [allSetsCollapsed, setAllSetsCollapsed] = useState(false);
-
-  const toggleSetCollapse = (setCode: string) => {
-    setCollapsedSets((prev) => {
-      const next = new Set(prev);
-      if (next.has(setCode)) {
-        next.delete(setCode);
-      } else {
-        next.add(setCode);
-      }
-      return next;
-    });
-  };
 
   // Filtered Scryfall Results (Search Mode)
   const filteredScryfallCards = useMemo(() => {

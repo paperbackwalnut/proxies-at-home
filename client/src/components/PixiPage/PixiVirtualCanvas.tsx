@@ -26,10 +26,11 @@ import {
     destroySpriteData,
     type SpriteData,
 } from './cardFilterUtils';
-import type { CardOption } from '../../../../shared/types';
-import type { DarkenMode } from '../../store/settings';
+import type { CardOption, DarkenMode } from '../../../../shared/types';
 import { useSettingsStore } from '../../store/settings';
 import { getEffectiveGlobalDarkenMode } from '../../helpers/imageSourceUtils';
+import { ImageSource } from '../../../../shared/types';
+import { CONSTANTS } from "@/constants/commonConstants";
 
 // --- Types ---
 
@@ -41,7 +42,8 @@ export interface CardWithGlobalLayout {
     backImageId?: string;
     backOverrides?: CardOption['overrides'];
     darknessFactor: number;
-    imageSource?: import('../../db').ImageSource;
+    imageSource?: ImageSource;
+    backImageSource?: ImageSource;
     // Position in pixels relative to page content origin (before zoom)
     globalX: number;
     globalY: number;
@@ -49,6 +51,7 @@ export interface CardWithGlobalLayout {
     height: number;
     // Bleed for cut guide rendering
     bleedMm: number;
+    backBleedMm?: number;
     // Precomputed hashes for fast memo comparison (avoids JSON.stringify on every render)
     overridesHash?: string;
     backOverridesHash?: string;
@@ -134,6 +137,7 @@ function PixiVirtualCanvasInner({
     const darkenApplyToScryfall = useSettingsStore((s) => s.darkenApplyToScryfall);
     const darkenApplyToMpc = useSettingsStore((s) => s.darkenApplyToMpc);
     const darkenApplyToUploads = useSettingsStore((s) => s.darkenApplyToUploads);
+    const darkenApplyToCardbacks = useSettingsStore((s) => s.darkenApplyToCardbacks);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const appRef = useRef<Application | null>(null);
@@ -321,6 +325,7 @@ function PixiVirtualCanvasInner({
                     autoStart: false,
                     powerPreference: 'high-performance',
                     preferWebGLVersion: 2,
+                    roundPixels: false,
                 });
                 newApp.ticker.stop();
             } catch (e) {
@@ -502,7 +507,22 @@ function PixiVirtualCanvasInner({
             });
 
             // Create texture from the loaded image
-            return Texture.from(img);
+            const texture = Texture.from(img);
+            // Enable mipmapping and anisotropic filtering to reduce aliasing/moiré when cards are scaled down
+            if (texture.source) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const source = texture.source as any;
+                source.mipmap = true;
+
+                // Anisotropic filtering is crucial for reducing shimmering on high-frequency patterns
+                if (source.style) {
+                    source.style.anisotropy = 16;
+                    source.style.minFilter = 'linear';
+                    source.style.magFilter = 'linear';
+                    source.style.mipmapFilter = 'linear';
+                }
+            }
+            return texture;
         } catch (e) {
             console.warn('[PixiVirtualCanvas] Failed to create texture:', e);
             URL.revokeObjectURL(url);
@@ -646,7 +666,7 @@ function PixiVirtualCanvasInner({
                 // Check if stale before processing each card
                 if (isStale()) return;
 
-                const { card, imageBlob, backBlob, frontImageId, backImageId, backOverrides, darknessFactor, imageSource, globalX, globalY, width, height } = cards[i];
+                const { card, imageBlob, backBlob, frontImageId, backImageId, backOverrides, darknessFactor, imageSource, backImageSource, globalX, globalY, width, height } = cards[i];
                 const uuid = card.uuid;
 
                 // Check if card is visible OR should be pre-initialized
@@ -773,10 +793,14 @@ function PixiVirtualCanvasInner({
                 }
 
                 // Update position and size (in content coordinates - zoom applied by container)
-                sprite.x = globalX;
-                sprite.y = globalY;
-                sprite.width = width;
-                sprite.height = height;
+                const activeBleedMm = isFlipped && cards[i].backBleedMm !== undefined ? cards[i].backBleedMm! : cards[i].bleedMm;
+                const bleedDiffMm = activeBleedMm - cards[i].bleedMm;
+                const bleedDiffPx = bleedDiffMm * CONSTANTS.DISPLAY_MM_TO_PX;
+
+                sprite.x = globalX - bleedDiffPx;
+                sprite.y = globalY - bleedDiffPx;
+                sprite.width = width + (bleedDiffPx * 2);
+                sprite.height = height + (bleedDiffPx * 2);
                 // Hide sprite if blank cardback or back is loading
                 sprite.visible = !shouldHide;
 
@@ -785,13 +809,14 @@ function PixiVirtualCanvasInner({
                 const overrides = isFlipped ? (backOverrides ?? card.overrides) : card.overrides;
 
                 // Calculate effective global darken mode for this specific card
-                const currentSource = imageSource ?? null;
+                const currentSource = isFlipped ? (backImageSource ?? null) : (imageSource ?? null);
                 const effectiveGlobalDarkenMode = getEffectiveGlobalDarkenMode(
                     globalDarkenMode,
                     currentSource,
                     darkenApplyToScryfall,
                     darkenApplyToMpc,
-                    darkenApplyToUploads
+                    darkenApplyToUploads,
+                    darkenApplyToCardbacks
                 );
 
                 // Darken filter always uses the standard screen layout dimensions
@@ -842,15 +867,12 @@ function PixiVirtualCanvasInner({
                     adjustFilter.holoUvScale = [1, 1];
                 }
 
-                // Build filter array based on what's needed
                 const useGlobal = overrides?.darkenUseGlobalSettings ?? true;
                 const effectiveMode = useGlobal ? effectiveGlobalDarkenMode : (overrides?.darkenMode ?? effectiveGlobalDarkenMode);
                 const filters: import('pixi.js').Filter[] = [];
-
                 if (effectiveMode !== 'none') {
                     filters.push(darkenFilter);
                 }
-
                 if (hasActiveAdjustments(overrides)) {
                     filters.push(adjustFilter);
                 }
@@ -907,6 +929,7 @@ function PixiVirtualCanvasInner({
         darkenApplyToScryfall,
         darkenApplyToMpc,
         darkenApplyToUploads,
+        darkenApplyToCardbacks,
         flippedCards,
         createTexture,
         onRenderedCardsChange,
@@ -943,6 +966,7 @@ const SHALLOW_COMPARE_KEYS: (keyof PixiVirtualCanvasProps)[] = [
 // Card properties that need simple equality check
 const CARD_SHALLOW_KEYS: (keyof CardWithGlobalLayout)[] = [
     'imageBlob', 'backBlob', 'globalX', 'globalY', 'width', 'height', 'darknessFactor',
+    'bleedMm', 'backBleedMm',
     'frontImageId', 'backImageId', // Important for detecting artwork changes even if blob refs stay same
 ];
 

@@ -124,15 +124,16 @@ export function FilterSortSection({ cards }: { cards?: CardOption[] }) {
         return extractAvailableFilters(cardsFromDb);
     }, [cardsFromDb]);
 
-    const POKEMON_CARD_TYPES = ["Pokemon", "Trainer", "Energy"];
-    const MTG_COLOR_CODES = new Set(["W", "U", "B", "R", "G", "C", "M"]);
-
-    const availableTypes = cfg.filters.energyType
-        ? rawAvailableTypes.filter(t => POKEMON_CARD_TYPES.includes(t))
-        : rawAvailableTypes;
+    const availableTypes = useMemo(() => {
+        const POKEMON_CARD_TYPES = ["Pokemon", "Trainer", "Energy"];
+        return cfg.filters.energyType
+            ? rawAvailableTypes.filter(t => POKEMON_CARD_TYPES.includes(t))
+            : rawAvailableTypes;
+    }, [cfg.filters.energyType, rawAvailableTypes]);
 
     const availableEnergyTypes = useMemo(() => {
         if (!cfg.filters.energyType || !cardsFromDb || cardsFromDb.length === 0) return [];
+        const MTG_COLOR_CODES = new Set(["W", "U", "B", "R", "G", "C", "M"]);
         const types = new Set<string>();
         for (const card of cardsFromDb) {
             if (card.colors) {

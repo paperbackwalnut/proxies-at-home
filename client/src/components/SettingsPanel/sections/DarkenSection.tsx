@@ -1,7 +1,8 @@
 /**
  * DarkenSection - Darken pixels settings for print optimization
  */
-import { useSettingsStore, type DarkenMode } from "@/store/settings";
+import { useSettingsStore } from "@/store/settings";
+import type { DarkenMode } from "../../../../../shared/types";
 import { Label, Select, Checkbox } from "flowbite-react";
 import { StyledSlider } from "@/components/common/StyledSlider";
 import '@/components/CardEditorModal/CardEditorModal.css';
@@ -27,6 +28,8 @@ export function DarkenSection() {
     const setDarkenApplyToMpc = useSettingsStore((state) => state.setDarkenApplyToMpc);
     const darkenApplyToUploads = useSettingsStore((state) => state.darkenApplyToUploads);
     const setDarkenApplyToUploads = useSettingsStore((state) => state.setDarkenApplyToUploads);
+    const darkenApplyToCardbacks = useSettingsStore((state) => state.darkenApplyToCardbacks);
+    const setDarkenApplyToCardbacks = useSettingsStore((state) => state.setDarkenApplyToCardbacks);
 
     const showContrastMode = darkenMode === 'contrast-edges' || darkenMode === 'contrast-full';
 
@@ -76,6 +79,16 @@ export function DarkenSection() {
                     />
                     <Label htmlFor="darken-target-uploads" className="cursor-pointer text-xs">
                         User Uploads
+                    </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        id="darken-target-cardbacks"
+                        checked={darkenApplyToCardbacks}
+                        onChange={(e) => setDarkenApplyToCardbacks(e.target.checked)}
+                    />
+                    <Label htmlFor="darken-target-cardbacks" className="cursor-pointer text-xs">
+                        Cardbacks
                     </Label>
                 </div>
             </div>

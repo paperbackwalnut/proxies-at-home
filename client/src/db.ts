@@ -1,17 +1,6 @@
 import Dexie, { type Table } from 'dexie';
-import type { CardOption, PrintInfo } from '@/types';
+import { ImageSource, type CardOption, type PrintInfo } from '../../shared/types';
 import { generateUUID } from './helpers/uuid';
-
-// Image source types for explicit tracking
-export const ImageSource = {
-  MPC: 'mpc',
-  Scryfall: 'scryfall',
-  TCGdex: 'tcgdex',
-  UploadLibrary: 'upload-library',
-  Cardback: 'cardback'
-} as const;
-
-export type ImageSource = typeof ImageSource[keyof typeof ImageSource];
 
 // Define a type for the image data to be stored
 export interface Image {
@@ -69,6 +58,7 @@ export interface Cardback {
   // Processed versions
   displayBlob?: Blob;
   displayDpi?: number;
+  displayBleedWidth?: number;
   exportBlob?: Blob;
   exportDpi?: number;
   exportBleedWidth?: number;
@@ -90,8 +80,20 @@ export interface Cardback {
 
   // Source and display
   sourceUrl?: string;
+  source?: ImageSource;
   displayName?: string;
   hasBuiltInBleed?: boolean;
+  displayVersion?: number;
+  processedWithAaBlur?: boolean;
+
+  // Metadata for MPC cardbacks
+  mpcSource?: string;
+  tags?: string[];
+
+  // Processed version, NO darkening applied (for CardEditor/Canvas)
+  baseDisplayBlob?: Blob;
+  baseExportBlob?: Blob;
+  darknessFactor?: number;
 }
 
 
@@ -141,18 +143,27 @@ export interface UserImage {
   linkedBackHash?: string;
 }
 
+export interface TcgScopedPreferences {
+  favoriteSets?: string[];
+  favoriteSort?: 'name' | 'released' | null;
+  favoriteGroupBySet?: boolean;
+  favoriteSearchMode?: 'cards' | 'prints' | null;
+}
+
 export interface UserPreferences {
   id: 'default';           // Singleton record
   settings: Json;          // User's default settings
   favoriteCardbacks: string[];  // Default cardback selections
   lastProjectId?: string;  // Resume last project on app open
-  // Global MPC Favorites
+  // TCG-scoped preferences (Phase 1: TCG Module Architecture)
+  tcgPreferences?: Record<string, TcgScopedPreferences>;
+  // MPC Favorites (shared across TCGs with MPC support)
   favoriteMpcSources?: string[];
   favoriteMpcTags?: string[];
   favoriteMpcDpi?: number | null;
   favoriteMpcSort?: 'name' | 'dpi' | 'source' | null;
   favoriteMpcGroupBySource?: boolean;
-  // Global Scryfall Favorites
+  // Legacy flat fields (migrated to tcgPreferences on load)
   favoriteScryfallSets?: string[];
   favoriteScryfallSort?: 'name' | 'released' | null;
   favoriteScryfallGroupBySet?: boolean;
@@ -160,11 +171,16 @@ export interface UserPreferences {
   favoritePokemonSets?: string[];
   favoritePokemonSort?: 'name' | 'released' | null;
   favoritePokemonGroupBySet?: boolean;
-  // Global Upload Library Preferences
+  // Upload Library Preferences
   uploadLibrarySort?: 'name' | 'date' | 'type' | null;
   uploadLibrarySortDirection?: 'asc' | 'desc';
   favoriteUploadLibraryGroupByType?: boolean;
-  // Global UI State
+  // Cardback Preferences (shared for now)
+  favoriteCardbackOrigins?: string[];
+  favoriteCardbackSources?: string[];
+  favoriteCardbackSort?: 'name' | 'source' | 'origin' | 'dpi' | null;
+  favoriteCardbackGroupBy?: boolean;
+  // UI State
   settingsPanelState?: { order: string[], collapsed: Record<string, boolean> };
   settingsPanelWidth?: number;
   isSettingsPanelCollapsed?: boolean;
@@ -498,10 +514,61 @@ class ProxxiedDexie extends Dexie {
       user_images: '&hash, displayName, isFavorite, createdAt',
       scryfallSetsCache: '&key, cachedAt',
     }).upgrade(async tx => {
-      // Migrate 'custom' source to 'upload-library' in images table
       await tx.table('images')
         .filter(img => img.source === 'custom')
         .modify({ source: ImageSource.UploadLibrary });
+    });
+
+    // Version 22: Backfill 'source' field in images and cardbacks tables
+    this.version(22).stores({
+      cards: '&uuid, imageId, order, name, needsEnrichment, needs_token, linkedFrontId, linkedBackId, projectId',
+      images: '&id, refCount, displayDpi, displayBleedWidth, exportDpi, exportBleedWidth',
+      cardbacks: '&id',
+      settings: '&id',
+      imageCache: '&url, cachedAt',
+      cardMetadataCache: 'id, name, set, number, cachedAt',
+      effectCache: '&key, cachedAt',
+      mpcSearchCache: '&[query+cardType], cachedAt',
+      projects: '&id, shareId, lastOpenedAt',
+      userPreferences: '&id',
+      user_images: '&hash, displayName, isFavorite, createdAt',
+      scryfallSetsCache: '&key, cachedAt',
+    }).upgrade(async tx => {
+      // 1. Update cardbacks - all existing cardbacks should have 'cardback' source
+      await tx.table('cardbacks')
+        .filter(cb => !cb.source)
+        .modify({ source: ImageSource.Cardback });
+
+      // 2. Update images - infer source from ID patterns if missing
+      await tx.table('images')
+        .filter(img => !img.source)
+        .modify(img => {
+          if (img.id.startsWith('http://') || img.id.startsWith('https://')) {
+            img.source = ImageSource.Scryfall;
+          } else if (img.id.startsWith('mpc-')) {
+            img.source = ImageSource.MPC;
+          } else {
+            // Default to upload-library for remaining (usually hashes/UUIDs)
+            img.source = ImageSource.UploadLibrary;
+          }
+        });
+
+      // 3. Update cards - backfill 'source' field based on imageId patterns or isUserUpload
+      await tx.table('cards')
+        .filter(card => !card.source)
+        .modify(card => {
+          if (card.isUserUpload) {
+            card.source = ImageSource.UploadLibrary;
+          } else if (card.imageId) {
+            if (card.imageId.startsWith('http://') || card.imageId.startsWith('https://')) {
+              card.source = ImageSource.Scryfall;
+            } else if (card.imageId.startsWith('mpc-')) {
+              card.source = ImageSource.MPC;
+            } else if (card.imageId.startsWith('cardback_')) {
+              card.source = ImageSource.Cardback;
+            }
+          }
+        });
     });
   }
 }

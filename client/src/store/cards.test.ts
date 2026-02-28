@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
+import { ImageSource } from '../../../shared/types';
 import { useCardsStore } from "./cards";
 import { db } from "../db";
 
@@ -18,11 +19,7 @@ vi.mock("../db", () => ({
       clear: vi.fn(),
     },
   },
-  ImageSource: {
-    Scryfall: "scryfall",
-    MPC: "mpc",
-    UploadLibrary: "upload-library"
-  },
+  ImageSource,
 }));
 
 // Mock useProjectStore

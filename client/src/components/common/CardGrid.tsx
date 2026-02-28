@@ -30,7 +30,7 @@ export const CardGrid = forwardRef<HTMLDivElement, CardGridProps>(({ children, c
     return (
         <div
             ref={ref}
-            className={`grid grid-cols-2 max-lg:landscape:grid-cols-[repeat(auto-fill,100px)] lg:grid-cols-[repeat(auto-fill,var(--card-grid-col-width,250px))] gap-2 lg:gap-4 justify-center ${className}`}
+            className={`grid grid-cols-2 max-lg:landscape:grid-cols-[repeat(auto-fill,100px)] lg:grid-cols-[repeat(auto-fill,var(--card-grid-col-width,250px))] gap-4 lg:gap-6 justify-center ${className}`}
             style={{ ...gridStyle, ...props.style }}
             {...props}
         >

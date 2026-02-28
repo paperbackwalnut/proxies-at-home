@@ -15,11 +15,19 @@ interface UserPreferencesState {
     setFavoriteMpcSort: (sort: 'name' | 'dpi' | 'source' | null) => Promise<void>;
     setFavoriteMpcGroupBySource: (enabled: boolean) => Promise<void>;
 
+    // Generic TCG Actions (Phase 1: TCG Module Architecture)
+    toggleFavoriteTcgSet: (tcg: string, set: string) => Promise<void>;
+    setFavoriteTcgSort: (tcg: string, sort: 'name' | 'released' | null) => Promise<void>;
+    setFavoriteTcgGroupBySet: (tcg: string, enabled: boolean) => Promise<void>;
+    setFavoriteTcgSearchMode: (tcg: string, mode: 'cards' | 'prints' | null) => Promise<void>;
+
+    // Legacy Scryfall Actions (deprecated getters, wire to generic actions)
     toggleFavoriteScryfallSet: (set: string) => Promise<void>;
     setFavoriteScryfallSort: (sort: 'name' | 'released' | null) => Promise<void>;
     setFavoriteScryfallGroupBySet: (enabled: boolean) => Promise<void>;
     setFavoriteScryfallSearchMode: (mode: 'cards' | 'prints' | null) => Promise<void>;
 
+    // Legacy Pokémon Actions (deprecated getters, wire to generic actions)
     toggleFavoritePokemonSet: (set: string) => Promise<void>;
     setFavoritePokemonSort: (sort: 'name' | 'released' | null) => Promise<void>;
     setFavoritePokemonGroupBySet: (enabled: boolean) => Promise<void>;
@@ -27,6 +35,13 @@ interface UserPreferencesState {
     setUploadLibrarySort: (sort: 'name' | 'date' | 'type' | null) => Promise<void>;
     setUploadLibrarySortDirection: (dir: 'asc' | 'desc') => Promise<void>;
     setFavoriteUploadLibraryGroupByType: (enabled: boolean) => Promise<void>;
+
+    setFavoriteCardbackOrigins: (origins: string[]) => Promise<void>;
+    toggleFavoriteCardbackOrigin: (origin: string) => Promise<void>;
+    setFavoriteCardbackSources: (sources: string[]) => Promise<void>;
+    toggleFavoriteCardbackSource: (source: string) => Promise<void>;
+    setFavoriteCardbackSort: (sort: 'name' | 'source' | 'origin' | 'dpi' | null) => Promise<void>;
+    setFavoriteCardbackGroupBy: (enabled: boolean) => Promise<void>;
 
     // UI State Actions
     setSettingsPanelState: (state: { order: string[], collapsed: Record<string, boolean> }) => Promise<void>;
@@ -37,6 +52,40 @@ interface UserPreferencesState {
     setCardEditorSectionCollapsed: (collapsed: Record<string, boolean>) => Promise<void>;
     setCardEditorSectionOrder: (order: string[]) => Promise<void>;
     setFilterSectionCollapsed: (collapsed: Record<string, boolean>) => Promise<void>;
+}
+type PrefsGetter = () => UserPreferencesState;
+type PrefsSetter = (state: Partial<UserPreferencesState>) => void;
+type ArrayPreferenceKey = Exclude<{
+    [K in keyof UserPreferences]: UserPreferences[K] extends string[] | undefined ? K : never;
+}[keyof UserPreferences], undefined>;
+
+// Helper to get active TCG preferences with defaults
+export function getTcgPrefs(prefs: UserPreferences | null, tcgId: string) {
+    return prefs?.tcgPreferences?.[tcgId] ?? {};
+}
+
+async function updatePreference<K extends keyof UserPreferences>(
+    key: K, value: UserPreferences[K], get: PrefsGetter, set: PrefsSetter,
+) {
+    const prefs = get().preferences;
+    if (!prefs) return;
+    const newPrefs = { ...prefs, [key]: value };
+    await db.userPreferences.put(newPrefs);
+    set({ preferences: newPrefs });
+}
+
+async function toggleArrayPreference(
+    key: ArrayPreferenceKey, item: string, get: PrefsGetter, set: PrefsSetter,
+) {
+    const prefs = get().preferences;
+    if (!prefs) return;
+    const current = (prefs[key] as string[] | undefined) || [];
+    const updated = current.includes(item)
+        ? current.filter(s => s !== item)
+        : [...current, item];
+    const newPrefs = { ...prefs, [key]: updated };
+    await db.userPreferences.put(newPrefs);
+    set({ preferences: newPrefs });
 }
 
 export const useUserPreferencesStore = create<UserPreferencesState>((set, get) => ({
@@ -64,15 +113,36 @@ export const useUserPreferencesStore = create<UserPreferencesState>((set, get) =
                     favoriteMpcSort: null,
                     favoriteScryfallSets: [],
                     favoriteScryfallSort: null,
+                    favoriteCardbackOrigins: [],
+                    favoriteCardbackSources: [],
+                    tcgPreferences: {
+                        mtg: { favoriteSets: [], favoriteSort: null, favoriteGroupBySet: false, favoriteSearchMode: null },
+                        pokemon: { favoriteSets: [], favoriteSort: null, favoriteGroupBySet: false }
+                    }
                 };
                 await db.userPreferences.add(prefs);
             }
 
             // Ensure new fields exist on old records
+            if (!prefs.tcgPreferences) {
+                prefs.tcgPreferences = {};
+                // Migrate legacy flat fields to scoped structure
+                prefs.tcgPreferences['mtg'] = {
+                    favoriteSets: prefs.favoriteScryfallSets ?? [],
+                    favoriteSort: prefs.favoriteScryfallSort ?? null,
+                    favoriteGroupBySet: prefs.favoriteScryfallGroupBySet ?? false,
+                    favoriteSearchMode: prefs.favoriteScryfallSearchMode ?? null,
+                };
+                prefs.tcgPreferences['pokemon'] = {
+                    favoriteSets: prefs.favoritePokemonSets ?? [],
+                    favoriteSort: prefs.favoritePokemonSort ?? null,
+                    favoriteGroupBySet: prefs.favoritePokemonGroupBySet ?? false,
+                };
+            }
             if (!prefs.favoriteMpcSources) prefs.favoriteMpcSources = [];
             if (!prefs.favoriteMpcTags) prefs.favoriteMpcTags = [];
-            if (!prefs.favoriteScryfallSets) prefs.favoriteScryfallSets = [];
-            if (!prefs.favoritePokemonSets) prefs.favoritePokemonSets = [];
+            if (!prefs.favoriteCardbackOrigins) prefs.favoriteCardbackOrigins = [];
+            if (!prefs.favoriteCardbackSources) prefs.favoriteCardbackSources = [];
 
             // Migration: customXXX -> uploadLibraryXXX
             /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -195,6 +265,11 @@ export const useUserPreferencesStore = create<UserPreferencesState>((set, get) =
             uploadLibrarySort: currentPrefs?.uploadLibrarySort ?? null,
             uploadLibrarySortDirection: currentPrefs?.uploadLibrarySortDirection,
             favoriteUploadLibraryGroupByType: currentPrefs?.favoriteUploadLibraryGroupByType ?? false,
+            favoriteCardbackOrigins: currentPrefs?.favoriteCardbackOrigins || [],
+            favoriteCardbackSources: currentPrefs?.favoriteCardbackSources || [],
+            favoriteCardbackSort: currentPrefs?.favoriteCardbackSort ?? null,
+            favoriteCardbackGroupBy: currentPrefs?.favoriteCardbackGroupBy ?? false,
+            tcgPreferences: currentPrefs?.tcgPreferences ?? {},
         };
 
         await db.userPreferences.put(newPrefs);
@@ -209,217 +284,110 @@ export const useUserPreferencesStore = create<UserPreferencesState>((set, get) =
         await get().saveCurrentAsDefaults();
     },
 
-    toggleFavoriteMpcSource: async (source: string) => {
+    toggleFavoriteMpcSource: async (source: string) => toggleArrayPreference('favoriteMpcSources', source, get, set),
+    toggleFavoriteMpcTag: async (tag: string) => toggleArrayPreference('favoriteMpcTags', tag, get, set),
+    setFavoriteMpcDpi: async (dpi: number | null) => updatePreference('favoriteMpcDpi', dpi, get, set),
+    setFavoriteMpcSort: async (sort: 'name' | 'dpi' | 'source' | null) => updatePreference('favoriteMpcSort', sort, get, set),
+    setSettingsPanelState: async (state: { order: string[], collapsed: Record<string, boolean> }) => updatePreference('settingsPanelState', state, get, set),
+    setSettingsPanelWidth: async (width: number) => updatePreference('settingsPanelWidth', width, get, set),
+    setIsSettingsPanelCollapsed: async (collapsed: boolean) => updatePreference('isSettingsPanelCollapsed', collapsed, get, set),
+    setIsUploadPanelCollapsed: async (collapsed: boolean) => updatePreference('isUploadPanelCollapsed', collapsed, get, set),
+    setUploadPanelWidth: async (width: number) => updatePreference('uploadPanelWidth', width, get, set),
+    setCardEditorSectionCollapsed: async (collapsed: Record<string, boolean>) => updatePreference('cardEditorSectionCollapsed', collapsed, get, set),
+    setCardEditorSectionOrder: async (order: string[]) => updatePreference('cardEditorSectionOrder', order, get, set),
+    setFilterSectionCollapsed: async (collapsed: Record<string, boolean>) => updatePreference('filterSectionCollapsed', collapsed, get, set),
+
+    // Generic TCG Actions
+    toggleFavoriteTcgSet: async (tcg: string, setKey: string) => {
         const prefs = get().preferences;
         if (!prefs) return;
+        const currentTcgPrefs = getTcgPrefs(prefs, tcg);
+        const currentSets = currentTcgPrefs.favoriteSets || [];
+        const updated = currentSets.includes(setKey)
+            ? currentSets.filter(s => s !== setKey)
+            : [...currentSets, setKey];
 
-        const current = prefs.favoriteMpcSources || [];
-        const updated = current.includes(source)
-            ? current.filter(s => s !== source)
-            : [...current, source];
+        const newPrefs: UserPreferences = {
+            ...prefs,
+            tcgPreferences: {
+                ...(prefs.tcgPreferences || {}),
+                [tcg]: { ...currentTcgPrefs, favoriteSets: updated }
+            }
+        };
 
-        const newPrefs = { ...prefs, favoriteMpcSources: updated };
+        if (tcg === 'mtg') newPrefs.favoriteScryfallSets = updated;
+        if (tcg === 'pokemon') newPrefs.favoritePokemonSets = updated;
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+    setFavoriteTcgSort: async (tcg: string, sort: 'name' | 'released' | null) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const currentTcgPrefs = getTcgPrefs(prefs, tcg);
+        const newPrefs: UserPreferences = {
+            ...prefs,
+            tcgPreferences: {
+                ...(prefs.tcgPreferences || {}),
+                [tcg]: { ...currentTcgPrefs, favoriteSort: sort }
+            }
+        };
+
+        if (tcg === 'mtg') newPrefs.favoriteScryfallSort = sort;
+        if (tcg === 'pokemon') newPrefs.favoritePokemonSort = sort;
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+    setFavoriteTcgGroupBySet: async (tcg: string, enabled: boolean) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const currentTcgPrefs = getTcgPrefs(prefs, tcg);
+        const newPrefs: UserPreferences = {
+            ...prefs,
+            tcgPreferences: {
+                ...(prefs.tcgPreferences || {}),
+                [tcg]: { ...currentTcgPrefs, favoriteGroupBySet: enabled }
+            }
+        };
+
+        if (tcg === 'mtg') newPrefs.favoriteScryfallGroupBySet = enabled;
+        if (tcg === 'pokemon') newPrefs.favoritePokemonGroupBySet = enabled;
+        await db.userPreferences.put(newPrefs);
+        set({ preferences: newPrefs });
+    },
+    setFavoriteTcgSearchMode: async (tcg: string, mode: 'cards' | 'prints' | null) => {
+        const prefs = get().preferences;
+        if (!prefs) return;
+        const currentTcgPrefs = getTcgPrefs(prefs, tcg);
+        const newPrefs: UserPreferences = {
+            ...prefs,
+            tcgPreferences: {
+                ...(prefs.tcgPreferences || {}),
+                [tcg]: { ...currentTcgPrefs, favoriteSearchMode: mode }
+            }
+        };
+
+        if (tcg === 'mtg') newPrefs.favoriteScryfallSearchMode = mode;
         await db.userPreferences.put(newPrefs);
         set({ preferences: newPrefs });
     },
 
-    toggleFavoriteMpcTag: async (tag: string) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
+    // Legacy TCG Actions (wrappers)
+    toggleFavoriteScryfallSet: async (setKey: string) => get().toggleFavoriteTcgSet('mtg', setKey),
+    setFavoriteScryfallSort: async (sort: 'name' | 'released' | null) => get().setFavoriteTcgSort('mtg', sort),
+    setFavoriteScryfallGroupBySet: async (enabled: boolean) => get().setFavoriteTcgGroupBySet('mtg', enabled),
+    setFavoriteScryfallSearchMode: async (mode: 'cards' | 'prints' | null) => get().setFavoriteTcgSearchMode('mtg', mode),
+    toggleFavoritePokemonSet: async (setKey: string) => get().toggleFavoriteTcgSet('pokemon', setKey),
+    setFavoritePokemonSort: async (sort: 'name' | 'released' | null) => get().setFavoriteTcgSort('pokemon', sort),
+    setFavoritePokemonGroupBySet: async (enabled: boolean) => get().setFavoriteTcgGroupBySet('pokemon', enabled),
 
-        const current = prefs.favoriteMpcTags || [];
-        const updated = current.includes(tag)
-            ? current.filter(t => t !== tag)
-            : [...current, tag];
-
-        const newPrefs = { ...prefs, favoriteMpcTags: updated };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteMpcDpi: async (dpi: number | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteMpcDpi: dpi };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteMpcSort: async (sort: 'name' | 'dpi' | 'source' | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteMpcSort: sort };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setSettingsPanelState: async (state: { order: string[], collapsed: Record<string, boolean> }) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, settingsPanelState: state };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setSettingsPanelWidth: async (width: number) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, settingsPanelWidth: width };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setIsSettingsPanelCollapsed: async (collapsed: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, isSettingsPanelCollapsed: collapsed };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setIsUploadPanelCollapsed: async (collapsed: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, isUploadPanelCollapsed: collapsed };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setUploadPanelWidth: async (width: number) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, uploadPanelWidth: width };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setCardEditorSectionCollapsed: async (collapsed: Record<string, boolean>) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, cardEditorSectionCollapsed: collapsed };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setCardEditorSectionOrder: async (order: string[]) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, cardEditorSectionOrder: order };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFilterSectionCollapsed: async (collapsed: Record<string, boolean>) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, filterSectionCollapsed: collapsed };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    toggleFavoriteScryfallSet: async (setKey: string) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const current = prefs.favoriteScryfallSets || [];
-        const updated = current.includes(setKey)
-            ? current.filter(s => s !== setKey)
-            : [...current, setKey];
-
-        const newPrefs = { ...prefs, favoriteScryfallSets: updated };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteScryfallSort: async (sort: 'name' | 'released' | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteScryfallSort: sort };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteScryfallGroupBySet: async (enabled: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteScryfallGroupBySet: enabled };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteScryfallSearchMode: async (mode: 'cards' | 'prints' | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteScryfallSearchMode: mode };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    toggleFavoritePokemonSet: async (setKey: string) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const current = prefs.favoritePokemonSets || [];
-        const updated = current.includes(setKey)
-            ? current.filter(s => s !== setKey)
-            : [...current, setKey];
-        const newPrefs = { ...prefs, favoritePokemonSets: updated };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoritePokemonSort: async (sort: 'name' | 'released' | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, favoritePokemonSort: sort };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoritePokemonGroupBySet: async (enabled: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, favoritePokemonGroupBySet: enabled };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteMpcGroupBySource: async (enabled: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteMpcGroupBySource: enabled };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setUploadLibrarySort: async (sort: 'name' | 'date' | 'type' | null) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, uploadLibrarySort: sort };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setUploadLibrarySortDirection: async (dir: 'asc' | 'desc') => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-        const newPrefs = { ...prefs, uploadLibrarySortDirection: dir };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    },
-
-    setFavoriteUploadLibraryGroupByType: async (enabled: boolean) => {
-        const prefs = get().preferences;
-        if (!prefs) return;
-
-        const newPrefs = { ...prefs, favoriteUploadLibraryGroupByType: enabled };
-        await db.userPreferences.put(newPrefs);
-        set({ preferences: newPrefs });
-    }
+    setFavoriteMpcGroupBySource: async (enabled: boolean) => updatePreference('favoriteMpcGroupBySource', enabled, get, set),
+    setUploadLibrarySort: async (sort: 'name' | 'date' | 'type' | null) => updatePreference('uploadLibrarySort', sort, get, set),
+    setUploadLibrarySortDirection: async (dir: 'asc' | 'desc') => updatePreference('uploadLibrarySortDirection', dir, get, set),
+    setFavoriteUploadLibraryGroupByType: async (enabled: boolean) => updatePreference('favoriteUploadLibraryGroupByType', enabled, get, set),
+    setFavoriteCardbackOrigins: async (origins: string[]) => updatePreference('favoriteCardbackOrigins', origins, get, set),
+    toggleFavoriteCardbackOrigin: async (origin: string) => toggleArrayPreference('favoriteCardbackOrigins', origin, get, set),
+    setFavoriteCardbackSources: async (sources: string[]) => updatePreference('favoriteCardbackSources', sources, get, set),
+    toggleFavoriteCardbackSource: async (source: string) => toggleArrayPreference('favoriteCardbackSources', source, get, set),
+    setFavoriteCardbackSort: async (sort: 'name' | 'source' | 'origin' | 'dpi' | null) => updatePreference('favoriteCardbackSort', sort, get, set),
+    setFavoriteCardbackGroupBy: async (enabled: boolean) => updatePreference('favoriteCardbackGroupBy', enabled, get, set),
 }));

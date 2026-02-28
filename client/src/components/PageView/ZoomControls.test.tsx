@@ -118,7 +118,7 @@ describe("ZoomControls", () => {
         expect(setZoom).toHaveBeenCalledWith(1.6);
     });
 
-    it("should change zoom on slider change", () => {
+    it("should change zoom on slider interaction", () => {
         const setZoom = vi.fn();
         (useSettingsStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector: (state: unknown) => unknown) => selector({
             zoom: 1.0,
@@ -126,9 +126,26 @@ describe("ZoomControls", () => {
         }));
 
         render(<ZoomControls />);
-        const slider = screen.getByRole("slider");
+        const container = screen.getByRole("slider").parentElement!;
 
-        fireEvent.change(slider, { target: { value: "75" } });
+        // Mock getBoundingClientRect
+        container.getBoundingClientRect = vi.fn(() => ({
+            left: 0,
+            width: 100,
+            top: 0,
+            height: 40,
+            bottom: 40,
+            right: 100,
+            x: 0,
+            y: 0,
+            toJSON: () => { },
+        }));
+
+        // Mock pointer capture functions for JSDOM
+        container.setPointerCapture = vi.fn();
+        container.releasePointerCapture = vi.fn();
+
+        fireEvent.pointerDown(container, { clientX: 75, button: 0 });
         expect(setZoom).toHaveBeenCalled();
     });
 

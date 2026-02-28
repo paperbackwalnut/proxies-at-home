@@ -8,6 +8,8 @@ import type { ArtSource } from "../common/ArtSourceToggle";
 import { useToastStore } from "@/store/toast";
 import { useZoomShortcuts } from "@/hooks/useZoomShortcuts";
 import { useArtworkModalStore } from "@/store/artworkModal";
+import { useSettingsStore } from "@/store/settings";
+import { getTcgConfig } from "@/config/tcgConfig";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/db";
 
@@ -36,6 +38,9 @@ export function AdvancedSearch({
     const [query, setQuery] = useState('');
     const cardZoom = useArtworkModalStore((state) => state.advancedSearchZoom);
     const setCardZoom = useArtworkModalStore((state) => state.setAdvancedSearchZoom);
+
+    const activeTcg = useSettingsStore((state) => state.activeTcg ?? 'mtg');
+    const tcgConfig = getTcgConfig(activeTcg);
 
     useZoomShortcuts({
         setZoom: setCardZoom,

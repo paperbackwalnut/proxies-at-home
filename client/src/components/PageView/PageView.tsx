@@ -26,7 +26,7 @@ import { rebalanceCardOrders } from "@/helpers/dbUtils";
 import { type Image, db } from "@/db";
 import { useArtworkModalStore } from "@/store/artworkModal";
 import { useCardEditorModalStore } from "@/store/cardEditorModal";
-import type { CardOption } from "../../../../shared/types";
+import { ImageSource, type CardOption, type DarkenMode } from "@/types";
 import type { useImageProcessing } from "@/hooks/useImageProcessing";
 import fullLogo from "../../assets/fullLogo.png";
 import {
@@ -36,7 +36,6 @@ import {
 } from "@/helpers/layout";
 import PixiVirtualCanvas, { type CardWithGlobalLayout, type PageLayoutInfo } from "../PixiPage/PixiVirtualCanvas";
 import { hashOverrides } from "@/helpers/overridesHash";
-import type { DarkenMode } from "../../store/settings";
 import { PageViewFloatingControls } from "./PageComponents/PageViewFloatingControls";
 import { CardControlsOverlay, type CardControlLayout } from "./PageComponents/CardControlsOverlay";
 import { PageViewContextMenu } from "./PageComponents/PageViewContextMenu";
@@ -548,9 +547,15 @@ export function PageView({ cards, allCards, images, mobile, active = true }: Pag
 
   // Map from image ID to image blob data
   const imageDataById = useMemo(() => {
-    const map = new Map<string, { displayBlob?: Blob; darknessFactor?: number; source?: import('@/db').ImageSource }>();
+    const map = new Map<string, { displayBlob?: Blob; originalBlob?: Blob; baseDisplayBlob?: Blob; darknessFactor?: number; source?: ImageSource }>();
     for (const img of images) {
-      map.set(img.id, { displayBlob: img.displayBlob, darknessFactor: img.darknessFactor, source: img.source });
+      map.set(img.id, {
+        displayBlob: img.displayBlob,
+        originalBlob: img.originalBlob, // Cardbacks carry originalBlob for 1200 DPI support
+        baseDisplayBlob: img.baseDisplayBlob,
+        darknessFactor: img.darknessFactor,
+        source: img.source
+      });
     }
     return map;
   }, [images]);
@@ -643,23 +648,37 @@ export function PageView({ cards, allCards, images, mobile, active = true }: Pag
         const backCard = backCardMap.get(card.uuid);
         const backImageData = backCard?.imageId ? imageDataById.get(backCard.imageId) : undefined;
 
+        // For builtin cardbacks, prioritize 1200 DPI originalBlob for PixiJS view to maximize sampler quality
+        // BUT if baseDisplayBlob exists (meaning it was processed, e.g. for bleed trim), use it so trim is visible
+        const useHighResFront = card.imageId && card.source === ImageSource.Cardback && imageData?.originalBlob && !imageData?.baseDisplayBlob;
+        const useHighResBack = backCard?.imageId && backCard.source === ImageSource.Cardback && backImageData?.originalBlob && !backImageData?.baseDisplayBlob;
+
+        const frontBlob = imageData?.baseDisplayBlob || (useHighResFront ? imageData?.originalBlob : imageData?.displayBlob);
+        const backBlob = backImageData?.baseDisplayBlob || (useHighResBack ? backImageData?.originalBlob : backImageData?.displayBlob);
+
+        if (backCard?.source === ImageSource.Cardback) {
+            console.log(`[PageView] Back card ${backCard.imageId} - baseDisplay: ${!!backImageData?.baseDisplayBlob}, display: ${!!backImageData?.displayBlob}, original: ${!!backImageData?.originalBlob}, highResBack: ${useHighResBack}, final size: ${backBlob?.size}`);
+        }
+
         // Always include card in globalPixiCards, even without displayBlob
         // PixiVirtualCanvas handles missing blobs gracefully (skips sprite creation)
         // This ensures change detection works when images are still processing
         result.push({
           card,
-          imageBlob: imageData?.displayBlob,
-          backBlob: backImageData?.displayBlob,
+          imageBlob: frontBlob,
+          backBlob: backBlob,
           frontImageId: card.imageId,
           backImageId: backCard?.imageId,
           backOverrides: backCard?.overrides,
           darknessFactor: imageData?.darknessFactor ?? 0.5,
           imageSource: imageData?.source,
+          backImageSource: backImageData?.source,
           globalX: xMm * CONSTANTS.DISPLAY_MM_TO_PX,
           globalY: topPaddingPx + CONSTANTS.PAGE_GAP_PX + pageIndex * (pageHeightPx + CONSTANTS.PAGE_GAP_PX) + yMm * CONSTANTS.DISPLAY_MM_TO_PX,
           width: layout.cardWidthMm * CONSTANTS.DISPLAY_MM_TO_PX,
           height: layout.cardHeightMm * CONSTANTS.DISPLAY_MM_TO_PX,
           bleedMm: layout.bleedMm,
+          backBleedMm: backCard ? getCardTargetBleed(backCard, sourceSettings, effectiveBleedWidth) : undefined,
           // Precomputed hashes for fast memo comparison
           overridesHash: hashOverrides(card.overrides),
           backOverridesHash: hashOverrides(backCard?.overrides),

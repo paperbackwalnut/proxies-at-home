@@ -31,6 +31,7 @@ export const CONSTANTS = {
     CARD_WIDTH_PX: 63 * 96 / 25.4,
     CARD_HEIGHT_PX: 88 * 96 / 25.4,
     CORNER_RADIUS_MM: 2.5,
+    CORNER_RADIUS_CSS: `${2.5 / 63 * 100}% / ${2.5 / 88 * 100}%`,
 
     /** Conversion constants */
     MM_PER_IN: 25.4,

@@ -234,9 +234,6 @@ export default function ProxyBuilderPage() {
     });
     return images;
   }, [imageVersion, currentProjectId]);
-  // Also query cardbacks - they share the same shape for useImageCache
-  const allCardbacksQuery = useLiveQuery(() => db.cardbacks.toArray(), []);
-
 
   const allCards = allCardsQuery ?? EMPTY_CARDS;
   // Apply filter/sort settings from store
@@ -278,13 +275,7 @@ export default function ProxyBuilderPage() {
       }
     }
   }, [idsToFlip, setFlipped, filtersHash]);
-  // Merge images and cardbacks for PageView - both have id, displayBlob, displayBlobDarkened
-  const allImages = useMemo(() => {
-    const images = allImagesQuery ?? EMPTY_IMAGES;
-    const cardbacks = allCardbacksQuery ?? [];
-    // Cast cardbacks to Image type since they share the necessary fields
-    return [...images, ...cardbacks as unknown as Image[]];
-  }, [allImagesQuery, allCardbacksQuery]);
+  const allImages = allImagesQuery ?? EMPTY_IMAGES;
 
   // Derived values (no additional DB queries needed)
   const cardCount = allCards.length;
@@ -327,7 +318,19 @@ export default function ProxyBuilderPage() {
         noBleedTargetAmount: state.noBleedTargetAmount,
       };
 
+      const allCardsAndBacks: CardOption[] = [];
+      const backCards = await db.cards.where('linkedFrontId').notEqual('').toArray();
+      const backCardMap = new Map(backCards.map(bc => [bc.linkedFrontId, bc]));
+
       for (const card of allCards) {
+        allCardsAndBacks.push(card);
+        const back = backCardMap.get(card.uuid);
+        if (back) {
+          allCardsAndBacks.push(back);
+        }
+      }
+
+      for (const card of allCardsAndBacks) {
         if (!card.imageId) continue;
 
         // Skip if we already have a representative card for this imageId

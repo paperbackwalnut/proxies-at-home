@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { CardGrid } from "../common";
 import { CardImageSvg } from "../common/CardImageSvg";
+import { CONSTANTS } from "@/constants/commonConstants";
 import { ScryfallAutocompleteInput } from "../common/ScryfallAutocompleteInput";
 import { UploadLibraryFilterBar } from "../common/CardArtFilterBar/UploadLibraryFilterBar";
 import {
@@ -136,7 +137,7 @@ function TileIdentifyOverlay({
     onClose,
 }: TileIdentifyOverlayProps) {
     return (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-2 z-30 rounded-[2.5mm]">
+        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-2 z-30" style={{ borderRadius: CONSTANTS.CORNER_RADIUS_CSS }}>
             <ScryfallAutocompleteInput
                 initialValue={matchingQuery}
                 onSelect={(name) => onMatchCard(displayItem.hash, name)}
@@ -669,7 +670,15 @@ export function UploadLibraryGrid({
             >
                 <div
                     className="relative w-full overflow-hidden"
-                    style={{ aspectRatio: "63 / 88" }}
+                    style={{
+                        aspectRatio: "63 / 88",
+                        borderRadius: CONSTANTS.CORNER_RADIUS_CSS,
+                        ...(isArtSelected
+                            ? { outline: `${Math.max(2, Math.round(4 * cardSize))}px solid rgb(34 197 94)` }
+                            : isDisplaySelected
+                                ? { outline: `${Math.max(2, Math.round(4 * cardSize))}px solid rgb(59 130 246)` }
+                                : {}),
+                    }}
                 >
                     {hasBleed ? (
                         <CardImageSvg
@@ -686,91 +695,85 @@ export function UploadLibraryGrid({
                         <img
                             src={displayImage}
                             alt={displayName}
-                            className="w-full h-full object-cover rounded-[2.5mm]"
+                            className="w-full h-full object-cover"
                         />
                     )}
-                </div>
-                {isDisplaySelected && (
-                    <div className="absolute inset-0 bg-blue-500/30 pointer-events-none rounded-[2.5mm] border-4 border-blue-500" />
-                )}
-                {isArtSelected && (
-                    <div className="absolute inset-0 rounded-[2.5mm] ring-4 ring-green-500 pointer-events-none" />
-                )}
-                {mode === "editor" && (
-                    <div
-                        className={`absolute left-1 top-1 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer z-20 transition-opacity pointer-events-auto ${isDisplaySelected
-                            ? "bg-blue-600 border-blue-600 opacity-100"
-                            : (selectedHashes?.size ?? 0) > 0
-                                ? "bg-white/80 border-gray-400 opacity-100"
-                                : "bg-white/80 border-gray-400 opacity-0 group-hover:opacity-100"
-                            }`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onToggleSelect?.(displayItem.hash, e.shiftKey);
-                        }}
-                        title="Select"
-                    >
-                        {isDisplaySelected && <Check className="w-3.5 h-3.5 text-white" />}
-                    </div>
-                )}
-                {isLinked && backPartner && (
-                    <TileFlipButton
-                        uploadHash={upload.hash}
-                        isFlipped={isFlipped}
-                        onToggleFlip={handleToggleFlip}
-                    />
-                )}
-                <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-2 rounded-b-[2.5mm] z-10">
-                    {editingHash === displayItem.hash ? (
-                        <input
-                            type="text"
-                            value={editingName}
-                            onChange={(e) => setEditingName(e.target.value)}
-                            onBlur={() => handleRename(displayItem.hash, editingName)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter")
-                                    handleRename(displayItem.hash, editingName);
-                                if (e.key === "Escape") setEditingHash(null);
+                    {mode === "editor" && (
+                        <div
+                            className={`absolute left-1 top-1 w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer z-20 transition-opacity pointer-events-auto ${isDisplaySelected
+                                ? "bg-blue-600 border-blue-600 opacity-100"
+                                : (selectedHashes?.size ?? 0) > 0
+                                    ? "bg-white/80 border-gray-400 opacity-100"
+                                    : "bg-white/80 border-gray-400 opacity-0 group-hover:opacity-100"
+                                }`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleSelect?.(displayItem.hash, e.shiftKey);
                             }}
-                            onClick={(e) => e.stopPropagation()}
-                            autoFocus
-                            className="w-full text-xs bg-transparent text-white border-b border-white/50 focus:outline-none focus:border-white px-0 py-0"
+                            title="Select"
+                        >
+                            {isDisplaySelected && <Check className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                    )}
+                    {isLinked && backPartner && (
+                        <TileFlipButton
+                            uploadHash={upload.hash}
+                            isFlipped={isFlipped}
+                            onToggleFlip={handleToggleFlip}
                         />
-                    ) : (
-                        <>
-                            <span className="text-xs text-white truncate block">
-                                {displayName}
-                            </span>
-                            {displayItem.canonicalCardName &&
-                                displayItem.canonicalCardName !== displayName && (
-                                    <span className="text-[10px] text-white/60 truncate block">
-                                        {displayItem.canonicalCardName}
-                                    </span>
-                                )}
-                        </>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/80 to-transparent p-2 z-10">
+                        {editingHash === displayItem.hash ? (
+                            <input
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={() => handleRename(displayItem.hash, editingName)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter")
+                                        handleRename(displayItem.hash, editingName);
+                                    if (e.key === "Escape") setEditingHash(null);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                autoFocus
+                                className="w-full text-xs bg-transparent text-white border-b border-white/50 focus:outline-none focus:border-white px-0 py-0"
+                            />
+                        ) : (
+                            <>
+                                <span className="text-xs text-white truncate block">
+                                    {displayName}
+                                </span>
+                                {displayItem.canonicalCardName &&
+                                    displayItem.canonicalCardName !== displayName && (
+                                        <span className="text-[10px] text-white/60 truncate block">
+                                            {displayItem.canonicalCardName}
+                                        </span>
+                                    )}
+                            </>
+                        )}
+                    </div>
+                    <TileActionButtons
+                        displayItem={displayItem}
+                        isLinked={isLinked}
+                        backPartner={backPartner}
+                        mode={mode}
+                        onFavorite={handleToggleFavorite}
+                        onIdentify={handleStartIdentify}
+                        onRename={handleStartRename}
+                        onDelete={handleDelete}
+                        onUnlink={handleUnlink}
+                    />
+                    {matchingHash === displayItem.hash && (
+                        <TileIdentifyOverlay
+                            displayItem={displayItem}
+                            matchingQuery={matchingQuery}
+                            matchedCardResult={matchedCardResult}
+                            onMatchCard={handleMatchCard}
+                            onUnmatch={handleUnmatch}
+                            onClose={handleCloseIdentify}
+                        />
                     )}
                 </div>
-                <TileActionButtons
-                    displayItem={displayItem}
-                    isLinked={isLinked}
-                    backPartner={backPartner}
-                    mode={mode}
-                    onFavorite={handleToggleFavorite}
-                    onIdentify={handleStartIdentify}
-                    onRename={handleStartRename}
-                    onDelete={handleDelete}
-                    onUnlink={handleUnlink}
-                />
-                {matchingHash === displayItem.hash && (
-                    <TileIdentifyOverlay
-                        displayItem={displayItem}
-                        matchingQuery={matchingQuery}
-                        matchedCardResult={matchedCardResult}
-                        onMatchCard={handleMatchCard}
-                        onUnmatch={handleUnmatch}
-                        onClose={handleCloseIdentify}
-                    />
-                )}
             </div>
         );
     };

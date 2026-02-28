@@ -10,6 +10,10 @@ const mockState = vi.hoisted(() => ({
     perCardGuideStyle: 'corners' as string,
     guidePlacement: 'outside' as 'outside' | 'center' | 'inside',
     cutGuideLengthMm: 6.25,
+    registrationMarks: 'none' as 'none' | '3' | '4',
+    setRegistrationMarks: vi.fn(),
+    registrationMarksPortrait: false,
+    setRegistrationMarksPortrait: vi.fn(),
     bleedEdge: true,
     bleedEdgeWidth: 3,
     cardSpacingMm: 0,
@@ -145,17 +149,20 @@ describe('GuidesSection', () => {
     });
 
     describe('card cut guide styles', () => {
-        it('should show Enable Card Guides button when style is none', () => {
+        it('should show Enable Cut Guides button when both styles are none', () => {
             mockState.perCardGuideStyle = 'none';
+            mockState.cutLineStyle = 'none';
             render(<GuidesSection />);
-            expect(screen.getByText('Enable Card Guides')).toBeDefined();
+            expect(screen.getByText('Enable Cut Guides')).toBeDefined();
         });
 
         it('should call setPerCardGuideStyle when enabling guides', () => {
             mockState.perCardGuideStyle = 'none';
+            mockState.cutLineStyle = 'none';
             render(<GuidesSection />);
-            fireEvent.click(screen.getByText('Enable Card Guides'));
+            fireEvent.click(screen.getByText('Enable Cut Guides'));
             expect(mockSetters.setPerCardGuideStyle).toHaveBeenCalledWith('corners');
+            expect(mockSetters.setCutLineStyle).toHaveBeenCalledWith('full');
         });
 
         it('should show style options when guides are enabled', () => {
@@ -169,17 +176,18 @@ describe('GuidesSection', () => {
             expect(screen.getByText('Round')).toBeDefined();
         });
 
-        it('should show Disable Card Guides button when enabled', () => {
+        it('should show Disable Cut Guides button when enabled', () => {
             mockState.perCardGuideStyle = 'corners';
             render(<GuidesSection />);
-            expect(screen.getByText('Disable Card Guides')).toBeDefined();
+            expect(screen.getByText('Disable Cut Guides')).toBeDefined();
         });
 
         it('should call setPerCardGuideStyle when disabling guides', () => {
             mockState.perCardGuideStyle = 'corners';
             render(<GuidesSection />);
-            fireEvent.click(screen.getByText('Disable Card Guides'));
+            fireEvent.click(screen.getByText('Disable Cut Guides'));
             expect(mockSetters.setPerCardGuideStyle).toHaveBeenCalledWith('none');
+            expect(mockSetters.setCutLineStyle).toHaveBeenCalledWith('none');
         });
     });
 

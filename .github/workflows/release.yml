@@ -179,9 +179,9 @@ jobs:
       - name: Get commits since last tag
         id: commits
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          if [ -n "$LAST_TAG" ]; then
-            COMMITS=$(git log --oneline "$LAST_TAG"..HEAD --no-merges | head -30)
+          LAST_RELEASE_COMMIT=$(git log --grep="^chore: bump version" -1 --format="%H" 2>/dev/null || echo "")
+          if [ -n "$LAST_RELEASE_COMMIT" ]; then
+            COMMITS=$(git log --oneline "$LAST_RELEASE_COMMIT"..HEAD --no-merges | head -30)
           else
             COMMITS=$(git log --oneline -30 --no-merges)
           fi

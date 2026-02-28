@@ -53,7 +53,8 @@ export type UndoableSettingKey =
     | "registrationMarksPortrait"
     | "darkenApplyToScryfall"
     | "darkenApplyToMpc"
-    | "darkenApplyToUploads";
+    | "darkenApplyToUploads"
+    | "darkenApplyToCardbacks";
 
 // Human-readable descriptions for each setting
 const settingDescriptions: Record<UndoableSettingKey, string> = {
@@ -103,6 +104,7 @@ const settingDescriptions: Record<UndoableSettingKey, string> = {
     darkenApplyToScryfall: "darken apply to Scryfall",
     darkenApplyToMpc: "darken apply to MPC",
     darkenApplyToUploads: "darken apply to User Uploads",
+    darkenApplyToCardbacks: "darken apply to Cardbacks",
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

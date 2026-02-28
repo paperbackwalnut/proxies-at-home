@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { ImageSource } from '../../../../shared/types';
 import * as matchers from '@testing-library/jest-dom/matchers';
 expect.extend(matchers);
 import { ArtworkBleedSettings } from './ArtworkBleedSettings';
@@ -30,11 +31,7 @@ vi.mock('@/db', () => ({
             get: vi.fn(),
         },
     },
-    ImageSource: {
-        Scryfall: "scryfall",
-        MPC: "mpc",
-        UploadLibrary: "upload-library"
-    }
+    ImageSource,
 }));
 
 // Mock BleedModeControl to simplify testing
@@ -219,7 +216,7 @@ describe('ArtworkBleedSettings', () => {
             const noneBtns = screen.getAllByText('Set None');
             fireEvent.click(noneBtns[noneBtns.length - 1]); // Last one is target
 
-            fireEvent.click(screen.getByText('Save Settings'));
+
 
             await waitFor(() => {
                 expect(undoableUpdateCardBleedSettings).toHaveBeenCalledWith(
@@ -315,7 +312,7 @@ describe('ArtworkBleedSettings', () => {
             const checkbox = screen.getByLabelText('Same as front') as HTMLInputElement;
             if (!checkbox.checked) fireEvent.click(checkbox);
 
-            fireEvent.click(screen.getByText('Save Settings'));
+
 
             await waitFor(() => {
                 expect(undoableUpdateCardBleedSettings).toHaveBeenCalledWith(
@@ -341,7 +338,7 @@ describe('ArtworkBleedSettings', () => {
             const setNoneBtns = screen.getAllByText('Set None');
             fireEvent.click(setNoneBtns[setNoneBtns.length - 1]); // Target is last
 
-            fireEvent.click(screen.getByText('Save Settings'));
+
 
             await waitFor(() => {
                 expect(undoableUpdateCardBleedSettings).toHaveBeenCalledWith(
@@ -366,7 +363,7 @@ describe('ArtworkBleedSettings', () => {
             const manualBtns = screen.getAllByText('Set Manual');
             fireEvent.click(manualBtns[manualBtns.length - 1]); // Target
 
-            fireEvent.click(screen.getByText('Save Settings'));
+
 
             await waitFor(() => {
                 expect(undoableUpdateCardBleedSettings).toHaveBeenCalledWith(
@@ -388,7 +385,7 @@ describe('ArtworkBleedSettings', () => {
             // Uncheck same as front to set explicit settings
             fireEvent.click(screen.getByLabelText('Same as front'));
 
-            fireEvent.click(screen.getByText('Save Settings'));
+
 
             await waitFor(() => {
                 // Should only include the active back card UUID, not multiple

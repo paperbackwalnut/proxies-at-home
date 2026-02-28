@@ -21,8 +21,8 @@ interface TcgdexCardDetail {
   name: string;
   image?: string;
   rarity?: string;
-  category?: string;   
-  types?: string[];    
+  category?: string;
+  types?: string[];
 }
 
 /**
@@ -41,7 +41,7 @@ async function lookupPokemonCard(cardInfo: CardInfo, lang = "en"): Promise<Scryf
     //   "Mewtwo 059"      → name="Mewtwo", localId="059"
     if (!localId) {
       const numSlash = cardName.match(/^(.+?)\s+(\d{1,4})\/\d+\s*$/);
-      const numOnly  = cardName.match(/^(.+?)\s+(\d{3,4})\s*$/); 
+      const numOnly = cardName.match(/^(.+?)\s+(\d{3,4})\s*$/);
       const m = numSlash ?? numOnly;
       if (m) {
         cardName = m[1].trim();
@@ -78,6 +78,7 @@ async function lookupPokemonCard(cardInfo: CardInfo, lang = "en"): Promise<Scryf
       energyTypes = detailResponse.data.types;
       rarity = detailResponse.data.rarity;
     } catch {
+      // Ignored
     }
 
     return {
@@ -86,9 +87,9 @@ async function lookupPokemonCard(cardInfo: CardInfo, lang = "en"): Promise<Scryf
       number: cardNumber,
       imageUrls: [`${brief.image}/high.webp`],
       lang,
-      rarity,                     
-      type_line: category,       
-      colors: energyTypes,       
+      rarity,
+      type_line: category,
+      colors: energyTypes,
     };
   } catch {
     return null;

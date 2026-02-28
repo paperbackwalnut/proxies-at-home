@@ -121,7 +121,7 @@ function mapScryfallDataToCard(data: RawScryfallCard): ScryfallCard {
     type_line: data.type_line,
     rarity: data.rarity,
     released_at: data.released_at,
-    card_faces: data.card_faces?.map((face, index) => ({
+    card_faces: data.card_faces ? data.card_faces.map((face, index) => ({
       name:
         face.name ||
         (index === 0
@@ -132,7 +132,15 @@ function mapScryfallDataToCard(data: RawScryfallCard): ScryfallCard {
         face.image_uris?.png ||
         face.image_uris?.large ||
         face.image_uris?.normal,
-    })),
+      thumbnailUrl:
+        face.image_uris?.normal ||
+        face.image_uris?.large ||
+        face.image_uris?.png,
+    })) : (data.image_uris ? [{
+      name: data.name,
+      imageUrl: data.image_uris.png || data.image_uris.large || data.image_uris.normal,
+      thumbnailUrl: data.image_uris.normal || data.image_uris.large || data.image_uris.png,
+    }] : undefined),
     token_parts: tokenParts,
     needs_token: !!(tokenParts && tokenParts.length > 0),
   };
@@ -237,6 +245,7 @@ export async function fetchCardWithPrints(
                 // Fallback: construct print from available fields
                 collectedPrints.push({
                   imageUrl: data.imageUrls[0],
+                  thumbnailUrl: data.imageUrls[0], // we don't have secondary URLs in this fallback path easily
                   set: data.set || "",
                   number: data.number || "",
                   rarity: data.rarity,

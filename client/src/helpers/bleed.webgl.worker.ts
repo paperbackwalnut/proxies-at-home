@@ -121,7 +121,10 @@ self.onmessage = async (e: MessageEvent) => {
             } else {
                 // Start new request
                 const loadPromise = (async () => {
-                    const response = await fetchWithRetry(proxiedUrl, 3, 250);
+                    const fetchUrl = proxiedUrl.startsWith("/")
+                        ? `${API_BASE}${proxiedUrl}`
+                        : proxiedUrl;
+                    const response = await fetchWithRetry(fetchUrl, 3, 250);
                     return await response.blob();
                 })();
                 const entry = { promise: loadPromise, waiters: 1 };
@@ -175,9 +178,12 @@ self.onmessage = async (e: MessageEvent) => {
         let result;
 
         // 3. Handle Bleed Modes
+        console.log(`[Worker] Processing Image - url: ${url}, bleedMode: ${bleedMode}, effectiveHasBleed: ${effectiveHasBleed}, targetBleedEdgeWidth: ${bleedEdgeWidth}`);
+        
         if (bleedMode === 'existing') {
             // Use existing bleed as-is
             const existingBleed = existingBleedMm ?? CONSTANTS.DEFAULT_MPC_BLEED_MM;
+            console.log(`[Worker] Route: 'existing', using existingBleed: ${existingBleed}`);
             result = await processExistingBleedWebGL(imageBitmap, existingBleed, {
                 unit: 'mm',
                 exportDpi: dpi,
@@ -187,6 +193,7 @@ self.onmessage = async (e: MessageEvent) => {
 
         } else if (bleedMode === 'none') {
             // Strip any bleed (render at 0 bleed)
+            console.log(`[Worker] Route: 'none', trimming to 0 bleed`);
             result = await processExistingBleedWebGL(imageBitmap, 0, {
                 unit: 'mm',
                 exportDpi: dpi,
@@ -204,6 +211,7 @@ self.onmessage = async (e: MessageEvent) => {
                     : CONSTANTS.DEFAULT_MPC_BLEED_MM;
 
                 const targetBleedMm = unit === 'in' ? bleedEdgeWidth * CONSTANTS.MM_PER_IN : bleedEdgeWidth;
+                console.log(`[Worker] Route: 'generate' with existing bleed. Target=${targetBleedMm.toFixed(3)}mm Existing=${assumedExistingBleedMm.toFixed(3)}mm ShouldTrim=${shouldTrimBleed(targetBleedMm, assumedExistingBleedMm)}`);
                 debugLog(`[Worker] Routing: Target=${targetBleedMm.toFixed(3)}mm Existing=${assumedExistingBleedMm.toFixed(3)}mm ShouldTrim=${shouldTrimBleed(targetBleedMm, assumedExistingBleedMm)}`);
 
                 if (shouldTrimBleed(targetBleedMm, assumedExistingBleedMm)) {

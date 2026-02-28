@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { db, METADATA_CACHE_VERSION, type CachedMetadata, ImageSource } from "../db";
+import { db, METADATA_CACHE_VERSION, type CachedMetadata } from "../db";
+import { ImageSource } from '@/types';
 import type { CardOption } from "@/types";
 import { API_BASE } from "../constants";
 import { getCurrentSession } from "../helpers/importSession";
 import { generateUUID } from "../helpers/uuid";
 import { useToastStore } from "../store/toast";
 import { getEnrichmentAbortController } from "../helpers/cancellationService";
-import { isCardbackId } from "../helpers/cardbackLibrary";
 import { searchMpcAutofill, getMpcAutofillImageUrl } from "../helpers/mpcAutofillApi";
 import { addRemoteImage } from "../helpers/dbUtils";
 import { pickBestMpcCard } from "../helpers/mpcImportIntegration";
@@ -114,7 +114,7 @@ export function useCardEnrichment() {
                 // Skip back cards (cardbacks) - they never need metadata enrichment
                 if (card.linkedFrontId) return false;
                 // Skip cards using cardback images - they're not real Magic cards
-                if (card.imageId && isCardbackId(card.imageId)) return false;
+                if (card.source === ImageSource.Cardback) return false;
                 // Skip cards already processed in this session
                 if (processedCardsRef.current.has(card.uuid)) return false;
                 if (card.enrichmentNextRetryAt && card.enrichmentNextRetryAt > now) return false;
@@ -295,7 +295,10 @@ export function useCardEnrichment() {
                             // 1. New back card (no existing)
                             // 2. Existing back card uses default cardback or placeholder
                             // 3. Existing back card has undefined imageId
-                            const needsBackArt = !existingBack || (existingBack.usesDefaultCardback || (existingBack.imageId && isCardbackId(existingBack.imageId)) || !existingBack.imageId);
+                            const needsBackArt = !existingBack ||
+                                existingBack.usesDefaultCardback ||
+                                (!!existingBack.imageId && existingBack.source === ImageSource.Cardback) ||
+                                !existingBack.imageId;
 
                             // Check if the current card name matches the BACK face name.
                             // If so, the user imported the back face, but we are converting it to the front face.
@@ -441,7 +444,8 @@ export function useCardEnrichment() {
                                             type_line: back.type_line,
                                             mana_cost: back.mana_cost,
                                             colors: back.colors,
-                                            needsEnrichment: false
+                                            needsEnrichment: false,
+                                            source: newBackArtId ? (settingsSnapshot.preferredArtSource === 'mpc' ? ImageSource.MPC : ImageSource.Scryfall) : (existingBack.usesDefaultCardback ? ImageSource.Cardback : existingBack.source)
                                         };
                                         if (newBackArtId) {
                                             backChanges.imageId = newBackArtId;
@@ -471,6 +475,7 @@ export function useCardEnrichment() {
                                             usesDefaultCardback: !newBackArtId,
 
                                             needsEnrichment: false,
+                                            source: settingsSnapshot.preferredArtSource === 'mpc' ? ImageSource.MPC : ImageSource.Scryfall,
                                         };
 
                                         newCards.push(newBackCard);

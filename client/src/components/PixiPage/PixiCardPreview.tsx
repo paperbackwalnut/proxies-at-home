@@ -18,7 +18,7 @@ import {
 } from './cardFilterUtils';
 import { hasActiveAdjustments } from '@/helpers/adjustmentUtils';
 import { CONSTANTS } from "@/constants/commonConstants";
-import type { ImageSource } from '@/db';
+import type { ImageSource } from '@/types';
 import type { RenderParams } from '../CardCanvas/types';
 import { getEffectiveGlobalDarkenMode } from '@/helpers/imageSourceUtils';
 
@@ -265,7 +265,8 @@ function PixiCardPreviewInner({
             imageSource || null,
             globalSettings.darkenApplyToScryfall,
             globalSettings.darkenApplyToMpc,
-            globalSettings.darkenApplyToUploads
+            globalSettings.darkenApplyToUploads,
+            globalSettings.darkenApplyToCardbacks
         );
 
         // Resolve exact settings manually applied by the slider vs global parameters 

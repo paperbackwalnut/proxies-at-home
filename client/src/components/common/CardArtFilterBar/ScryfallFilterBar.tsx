@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 import { SelectDropdown } from "..";
 import { SharedFilterLayout } from "./SharedFilterLayout";
 import { useUserPreferencesStore } from "@/store";
+import { getTcgPrefs } from "@/store/userPreferences";
 import { fetchScryfallSets } from "@/helpers/scryfallApi";
 import type { ScryfallSet } from "@/types";
 
@@ -68,13 +69,15 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
         (s) => s.setFavoriteScryfallSearchMode
     );
 
+    const tcgPrefs = useMemo(() => getTcgPrefs(preferences, "mtg"), [preferences]);
+
     const favoriteScryfallSets = useMemo(
-        () => new Set(preferences?.favoriteScryfallSets || []),
-        [preferences?.favoriteScryfallSets]
+        () => new Set<string>(tcgPrefs.favoriteSets || []),
+        [tcgPrefs.favoriteSets]
     );
     const favoriteScryfallSearchMode =
-        preferences?.favoriteScryfallSearchMode ?? null;
-    const favoriteScryfallSort = preferences?.favoriteScryfallSort || null;
+        tcgPrefs.favoriteSearchMode ?? null;
+    const favoriteScryfallSort = tcgPrefs.favoriteSort || null;
 
 
     useEffect(() => {
@@ -233,8 +236,8 @@ export function ScryfallFilterBar(props: ScryfallFilterProps) {
             viewOptions={{
                 groupBy: props.groupBySet,
                 onToggleGroupBy: props.onToggleGroupBySet,
-                favoriteGroupBy: !!preferences?.favoriteScryfallGroupBySet,
-                onToggleFavoriteGroupBy: () => setFavoriteScryfallGroupBySet(!preferences?.favoriteScryfallGroupBySet),
+                favoriteGroupBy: !!tcgPrefs.favoriteGroupBySet,
+                onToggleFavoriteGroupBy: () => setFavoriteScryfallGroupBySet(!tcgPrefs.favoriteGroupBySet),
                 isCollapsed: props.allSetsCollapsed,
                 onToggleCollapse: () => {
                     if (props.allSetsCollapsed) {

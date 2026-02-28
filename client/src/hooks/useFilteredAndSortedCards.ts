@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { useSettingsStore } from "../store/settings";
-import type { CardOption } from "../../../shared/types";
-import { isCardbackId } from "../helpers/cardbackLibrary";
+import { ImageSource, type CardOption } from "../../../shared/types";
 import { useSelectionStore } from "../store/selection";
 import { useShallow } from "zustand/shallow";
 import { sortCards, matchesFilters, getCardTypes, type FilterCriteria } from "../helpers/sortAndFilterUtils";
@@ -70,7 +69,7 @@ export function useFilteredAndSortedCards(cards: CardOption[] = []) {
                 if (!c.linkedFrontId && !c.linkedBackId) continue;
                 if (c.linkedBackId) {
                     const back = cardMap.get(c.linkedBackId);
-                    if (back && back.imageId && isCardbackId(back.imageId)) continue;
+                    if (back && back.source === ImageSource.Cardback) continue;
                 }
             }
 

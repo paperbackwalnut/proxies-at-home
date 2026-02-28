@@ -2,9 +2,9 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useMpcSearch } from './useMpcSearch';
 
-// Mock dependencies
 vi.mock('@/helpers/mpcAutofillApi', () => ({
-    searchMpcAutofill: vi.fn(),
+    searchMpcIdentifiers: vi.fn(),
+    fetchMpcCardDetails: vi.fn(),
 }));
 
 vi.mock('@/store', () => ({
@@ -27,12 +27,14 @@ vi.mock('@/store', () => ({
     }),
 }));
 
-import { searchMpcAutofill } from '@/helpers/mpcAutofillApi';
+import { searchMpcIdentifiers, fetchMpcCardDetails } from '@/helpers/mpcAutofillApi';
 
 describe('useMpcSearch', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.useFakeTimers();
+        (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+        (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue({});
     });
 
     afterEach(() => {
@@ -62,8 +64,8 @@ describe('useMpcSearch', () => {
     });
 
     describe('search behavior', () => {
-        it('should call searchMpcAutofill on query change', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+        it('should call searchMpcIdentifiers on query change', async () => {
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
             renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -72,10 +74,10 @@ describe('useMpcSearch', () => {
             });
 
             await vi.waitFor(() => {
-                expect(searchMpcAutofill).toHaveBeenCalled();
+                expect(searchMpcIdentifiers).toHaveBeenCalled();
             });
 
-            expect(searchMpcAutofill).toHaveBeenCalledWith('Sol Ring', 'CARD', true);
+            expect(searchMpcIdentifiers).toHaveBeenCalledWith('Sol Ring', 'CARD', true);
         });
 
         it('should update cards on successful search', async () => {
@@ -84,7 +86,13 @@ describe('useMpcSearch', () => {
                 { id: '2', name: 'Sol Ring Alt', dpi: 800, sourceName: 'Source B' },
             ];
 
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1]
+            };
+
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -110,7 +118,7 @@ describe('useMpcSearch', () => {
                 vi.advanceTimersByTime(600);
             });
 
-            expect(searchMpcAutofill).not.toHaveBeenCalled();
+            expect(searchMpcIdentifiers).not.toHaveBeenCalled();
         });
     });
 
@@ -119,9 +127,15 @@ describe('useMpcSearch', () => {
             const mockCardResults = [{ id: '1', name: 'Treasure Nabber', dpi: 1200, sourceName: 'Source A' }];
             const mockTokenResults = [{ id: '2', name: 'Treasure', dpi: 1200, sourceName: 'Source B' }];
 
-            (searchMpcAutofill as ReturnType<typeof vi.fn>)
-                .mockResolvedValueOnce(mockCardResults)
-                .mockResolvedValueOnce(mockTokenResults);
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>)
+                .mockResolvedValueOnce(['1'])
+                .mockResolvedValueOnce(['2']);
+
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>)
+                .mockResolvedValue({
+                    '1': mockCardResults[0],
+                    '2': mockTokenResults[0]
+                });
 
             const { result } = renderHook(() => useMpcSearch('treasure'));
 
@@ -129,21 +143,27 @@ describe('useMpcSearch', () => {
                 vi.advanceTimersByTime(600);
             });
 
-            expect(searchMpcAutofill).toHaveBeenCalledTimes(2);
+            expect(searchMpcIdentifiers).toHaveBeenCalledTimes(2);
             expect(result.current.isLoading).toBe(false);
 
-            // Should have called searchMpcAutofill twice - once for CARD, once for TOKEN
-            expect(searchMpcAutofill).toHaveBeenCalledWith('treasure', 'CARD', true);
-            expect(searchMpcAutofill).toHaveBeenCalledWith('treasure', 'TOKEN', true);
+            // Should have called searchMpcIdentifiers twice - once for CARD, once for TOKEN
+            expect(searchMpcIdentifiers).toHaveBeenCalledWith('treasure', 'CARD', true);
+            expect(searchMpcIdentifiers).toHaveBeenCalledWith('treasure', 'TOKEN', true);
         });
 
         it('should merge token and card results for collision names', async () => {
             const mockCardResults = [{ id: '1', name: 'Treasure Nabber', dpi: 1200, sourceName: 'Source A' }];
             const mockTokenResults = [{ id: '2', name: 'Treasure Token', dpi: 1200, sourceName: 'Source B' }];
 
-            (searchMpcAutofill as ReturnType<typeof vi.fn>)
-                .mockResolvedValueOnce(mockCardResults)
-                .mockResolvedValueOnce(mockTokenResults);
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>)
+                .mockResolvedValueOnce(['1'])
+                .mockResolvedValueOnce(['2']);
+
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>)
+                .mockResolvedValue({
+                    '1': mockCardResults[0],
+                    '2': mockTokenResults[0]
+                });
 
             const { result } = renderHook(() => useMpcSearch('blood'));
 
@@ -161,7 +181,7 @@ describe('useMpcSearch', () => {
         });
 
         it('should not do dual-search for non-collision names', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
             renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -170,12 +190,12 @@ describe('useMpcSearch', () => {
             });
 
             await vi.waitFor(() => {
-                expect(searchMpcAutofill).toHaveBeenCalled();
+                expect(searchMpcIdentifiers).toHaveBeenCalled();
             });
 
             // Should only call once with CARD type
-            expect(searchMpcAutofill).toHaveBeenCalledTimes(1);
-            expect(searchMpcAutofill).toHaveBeenCalledWith('Sol Ring', 'CARD', true);
+            expect(searchMpcIdentifiers).toHaveBeenCalledTimes(1);
+            expect(searchMpcIdentifiers).toHaveBeenCalledWith('Sol Ring', 'CARD', true);
         });
     });
 
@@ -187,7 +207,13 @@ describe('useMpcSearch', () => {
         ];
 
         it('should filter by minimum DPI', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1],
+                '3': mockCards[2]
+            };
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -206,7 +232,13 @@ describe('useMpcSearch', () => {
         });
 
         it('should filter by source', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1],
+                '3': mockCards[2]
+            };
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -230,7 +262,13 @@ describe('useMpcSearch', () => {
         });
 
         it('should clear all filters', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1],
+                '3': mockCards[2]
+            };
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Sol Ring'));
 
@@ -269,7 +307,13 @@ describe('useMpcSearch', () => {
         ];
 
         it('should sort by DPI descending by default', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1],
+                '3': mockCards[2]
+            };
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Test'));
 
@@ -293,7 +337,13 @@ describe('useMpcSearch', () => {
         });
 
         it('should sort by name when setSortBy is called', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue(mockCards);
+            const mockDict = {
+                '1': mockCards[0],
+                '2': mockCards[1],
+                '3': mockCards[2]
+            };
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue(['1', '2', '3']);
+            (fetchMpcCardDetails as ReturnType<typeof vi.fn>).mockResolvedValue(mockDict);
 
             const { result } = renderHook(() => useMpcSearch('Test'));
 
@@ -321,7 +371,7 @@ describe('useMpcSearch', () => {
 
     describe('activeFilterCount', () => {
         it('should count active filters correctly', async () => {
-            (searchMpcAutofill as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+            (searchMpcIdentifiers as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
             const { result } = renderHook(() => useMpcSearch('Test'));
 

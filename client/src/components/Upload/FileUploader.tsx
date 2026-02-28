@@ -10,6 +10,9 @@ import { db } from "@/db";
 import { SplitButton, type SplitButtonOption } from "../common";
 import { UploadLibraryEditor } from "./UploadLibraryEditor";
 import { useLiveQuery } from "dexie-react-hooks";
+import { ImageSource } from "@/types";
+
+import { bucketDpiFromHeight } from "@/helpers/imageProcessing";
 
 type UploadMode = "standard" | "withBleed" | "cardback" | "auto";
 
@@ -45,12 +48,24 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
             for (const file of fileArray) {
                 const imageId = `cardback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 const cardbackName = file.name.replace(/\.[^/.]+$/, "");
+                
+                // Calculate DPI
+                let dpi = 300;
+                try {
+                    const bitmap = await createImageBitmap(file);
+                    dpi = bucketDpiFromHeight(bitmap.height);
+                    bitmap.close();
+                } catch (e) {
+                    console.error("Failed to determine DPI for cardback:", e);
+                }
 
                 await db.cardbacks.add({
                     id: imageId,
                     originalBlob: file,
                     displayName: cardbackName,
                     hasBuiltInBleed: true,
+                    source: 'cardback',
+                    exportDpi: dpi,
                 });
             }
             const count = fileArray.length;
@@ -90,7 +105,7 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
-            const isCardback = uploadMode === "cardback";
+            const isCardback = uploadMode === ImageSource.Cardback;
 
             if (!isCardback) {
                 setLoadingTask("Processing Images");

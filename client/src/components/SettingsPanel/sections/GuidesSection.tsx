@@ -168,13 +168,16 @@ export function GuidesSection() {
                 </div>
 
                 {/* Toggle-based guide style selector */}
-                {perCardGuideStyle === 'none' ? (
+                {perCardGuideStyle === 'none' && cutLineStyle === 'none' ? (
                     <Button
                         fullSized
-                        onClick={() => setPerCardGuideStyle('corners')}
+                        onClick={() => {
+                            setPerCardGuideStyle('corners');
+                            setCutLineStyle('full');
+                        }}
                         className="bg-gray-500 dark:bg-gray-600 text-white hover:bg-gray-600 dark:hover:bg-gray-500 border-0"
                     >
-                        Enable Card Guides
+                        Enable Cut Guides
                     </Button>
                 ) : (
                     <div className="space-y-2">
@@ -384,10 +387,13 @@ export function GuidesSection() {
                         {/* Disable button */}
                         <Button
                             fullSized
-                            onClick={() => setPerCardGuideStyle('none')}
+                            onClick={() => {
+                                setPerCardGuideStyle('none');
+                                setCutLineStyle('none');
+                            }}
                             className="bg-gray-500 dark:bg-gray-600 text-white hover:bg-gray-600 dark:hover:bg-gray-500 border-0"
                         >
-                            Disable Card Guides
+                            Disable Cut Guides
                         </Button>
                     </div>
                 )}

@@ -2,7 +2,7 @@
 import { fetchMoxfieldDeck, extractMoxfieldDeckId, extractCardsFromDeck as extractMoxfieldCards } from "./moxfieldApi";
 import { fetchArchidektDeck, extractArchidektDeckId, extractCardsFromDeck as extractArchidektCards } from "./archidektApi";
 import { inferCardNameFromFilename, extractDriveId } from "./mpc";
-import type { CardOverrides, TokenPart, ScryfallCard } from "../../../shared/types";
+import { ImageSource, type CardOverrides, type TokenPart, type ScryfallCard } from "../../../shared/types";
 
 /**
  * Pre-fetched card data to skip API calls during import.
@@ -45,6 +45,7 @@ export interface ImportIntent {
 
     // For Custom/XML: The ID of the specific image to use as the back face.
     linkedBackImageId?: string;
+    linkedBackSource?: ImageSource;
     linkedBackName?: string;
     linkedBackSet?: string;     // For linking specific Scryfall back via set/number
     linkedBackNumber?: string;  // For linking specific Scryfall back via set/number
@@ -67,7 +68,7 @@ export interface ImportIntent {
     // Optimization: Pre-fetched data to skip API calls
     preloadedData?: PreloadedCardData;
 
-    sourcePreference?: 'scryfall' | 'mpc' | 'manual';
+    sourcePreference?: 'scryfall' | 'mpc' | 'manual' | 'upload-library';
 
     // For restoring exact state from Share
     preferredImageId?: string; // Specific Scryfall/URL image to use instead of default lookup
@@ -307,6 +308,7 @@ export function createIntentFromPreloaded(
         category: options.category,
         targetCardId: options.targetCardId,
         linkedBackImageId: options.linkedBackImageId,
+        linkedBackSource: options.linkedBackImageId?.startsWith('cardback_') ? ImageSource.Cardback : undefined,
         preloadedData: cardData,
         sourcePreference: 'manual'
     };
@@ -413,6 +415,7 @@ export function parseMpcXml(xmlContent: string): ImportIntent[] {
             mpcId: frontId,
             linkedBackImageId,
             linkedBackName,
+            linkedBackSource: linkedBackImageId ? (linkedBackImageId.startsWith('cardback_') ? ImageSource.Cardback : ImageSource.MPC) : undefined,
             isToken: false,
             sourcePreference: 'mpc',
             filename,

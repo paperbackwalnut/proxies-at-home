@@ -1,28 +1,28 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
-import { CardbackTile } from "./CardbackTile";
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { CardbackTile } from './CardbackTile';
 
 // Mock CardImageSvg to avoid IO issues and simplify testing
 vi.mock('../common/CardImageSvg', () => ({
-    CardImageSvg: ({ id, url }: { id: string, url: string }) => (
-        <div data-testid="card-image-svg">
-            <span data-testid="id-display">{id}</span>
-            <img src={url} alt="cardback" />
+    CardImageSvg: ({ id, url, bleed }: { id: string, url: string, bleed?: { amountMm: number; sourceWidthMm: number; sourceHeightMm: number } }) => (
+        <div data-testid="mock-card-image-svg" data-id={id} data-url={url} data-bleed={bleed ? JSON.stringify(bleed) : 'null'}>
+            Mock Card Image
         </div>
-    )
+    ),
 }));
 
 describe("CardbackTile", () => {
     const defaultProps = {
-        id: "test-cardback",
-        name: "Test Cardback",
-        imageUrl: "https://example.com/cardback.png",
-        source: "builtin" as const,
+        id: '123',
+        name: 'Test Cardback',
+        imageUrl: 'http://example.com/image.png',
+        source: 'Uploaded',
+        origin: 'uploaded' as const,
         isSelected: false,
         isDefault: false,
         isDeleting: false,
         isEditing: false,
-        editingName: "",
+        editingName: '',
         onSelect: vi.fn(),
         onSetAsDefault: vi.fn(),
         onDelete: vi.fn(),
@@ -33,217 +33,92 @@ describe("CardbackTile", () => {
     };
 
     describe("rendering", () => {
-        it("should render cardback image", () => {
-            render(<CardbackTile {...defaultProps} />);
-            const img = screen.getByAltText("cardback");
-            expect((img as HTMLImageElement).src).toBe("https://example.com/cardback.png");
+        it("should render correctly", () => {
+            render(<CardbackTile {...defaultProps} origin="uploaded" />);
+            expect(screen.getByText("Test Cardback")).toBeInTheDocument();
+            expect(screen.getByTestId("mock-card-image-svg")).toBeInTheDocument();
         });
 
-        it("should render cardback name", () => {
-            render(<CardbackTile {...defaultProps} />);
-            expect(screen.getByText("Test Cardback")).toBeDefined();
+        it('should pass bleed config to CardImageSvg when displayBleedWidth is provided', () => {
+            render(<CardbackTile {...defaultProps} displayBleedWidth={3.175} />);
+            const cardImage = screen.getByTestId('mock-card-image-svg');
+            const bleed = JSON.parse(cardImage.getAttribute('data-bleed') || 'null');
+            expect(bleed.amountMm).toBe(3.175);
         });
 
-        it("should render blank placeholder for cardback_builtin_blank id", () => {
-            render(<CardbackTile {...defaultProps} id="cardback_builtin_blank" name="Blank" />);
-            // Should show "Blank" text in the placeholder
-            expect(screen.getAllByText("Blank").length).toBeGreaterThan(0);
-            // Should not render the mocked CardImageSvg
-            expect(screen.queryByTestId("card-image-svg")).toBeNull();
+        it('should fallback to 3.175mm when hasBuiltInBleed is true and displayBleedWidth is missing', () => {
+            render(<CardbackTile {...defaultProps} hasBuiltInBleed={true} displayBleedWidth={undefined} />);
+            const cardImage = screen.getByTestId('mock-card-image-svg');
+            const bleed = JSON.parse(cardImage.getAttribute('data-bleed') || 'null');
+            expect(bleed.amountMm).toBe(3.175);
+        });
+
+        it('should NOT pass bleed config when displayBleedWidth is 0', () => {
+            render(<CardbackTile {...defaultProps} displayBleedWidth={0} />);
+            const cardImage = screen.getByTestId('mock-card-image-svg');
+            expect(cardImage.getAttribute('data-bleed')).toBe('null');
+        });
+
+        it('should pass correct source dimensions for bleed', () => {
+            render(<CardbackTile {...defaultProps} displayBleedWidth={3.175} />);
+            const cardImage = screen.getByTestId('mock-card-image-svg');
+            const bleed = JSON.parse(cardImage.getAttribute('data-bleed') || 'null');
+            expect(bleed.sourceWidthMm).toBe(63 + (3.175 * 2));
+            expect(bleed.sourceHeightMm).toBe(88 + (3.175 * 2));
         });
     });
 
     describe("selection", () => {
-        it("should call onSelect when clicking the tile", () => {
+        it("should call onSelect when clicked", () => {
             const onSelect = vi.fn();
             render(<CardbackTile {...defaultProps} onSelect={onSelect} />);
 
-            // Click the main container (mock image parent)
-            const tile = screen.getByTestId("card-image-svg").closest(".relative") as HTMLElement;
+            const tile = screen.getByTestId("cardback-tile-123");
             fireEvent.click(tile);
 
             expect(onSelect).toHaveBeenCalled();
         });
 
-        it("should apply green border when selected", () => {
-            const { container } = render(<CardbackTile {...defaultProps} isSelected={true} />);
-            const borderDiv = container.querySelector(".border-green-500");
-            expect(borderDiv).toBeDefined();
+        it('should apply green outline when selected', () => {
+            render(<CardbackTile {...defaultProps} isSelected={true} origin="uploaded" />);
+            const highlight = document.querySelector('[style*="outline"]') as HTMLElement;
+            expect(highlight).toBeInTheDocument();
+            // Match rgb(34, 197, 94) or rgb(34 197 94)
+            expect(highlight.style.outline).toMatch(/rgb\(34[ ,]+197[ ,]+94\)/);
+            expect(highlight.style.outline).toContain('px solid');
         });
 
-        it("should apply transparent border when not selected", () => {
-            const { container } = render(<CardbackTile {...defaultProps} isSelected={false} />);
-            const borderDiv = container.querySelector(".border-transparent");
-            expect(borderDiv).toBeDefined();
-        });
-    });
-
-    describe("default cardback (star)", () => {
-        it("should show filled star for default cardback", () => {
-            render(<CardbackTile {...defaultProps} isDefault={true} />);
-            // Finding the star might depend on icon library, check for button title instead then inspect icon?
-            // Lucide star renders an svg.
-            const starButton = screen.getByTitle("Default cardback");
-            expect(starButton).toBeDefined();
-            // Check for filled class in children if needed, or rely on title change verify logic
-            const icon = starButton.querySelector("svg");
-            expect(icon?.getAttribute("class")).toContain("text-yellow-400");
-        });
-
-        it("should call onSetAsDefault when clicking star button", () => {
-            const onSetAsDefault = vi.fn();
-            render(<CardbackTile {...defaultProps} isDefault={false} onSetAsDefault={onSetAsDefault} />);
-
-            const starButton = screen.getByTitle("Set as default cardback");
-            fireEvent.click(starButton);
-
-            expect(onSetAsDefault).toHaveBeenCalled();
-        });
-
-        it("should stop propagation when clicking star button", () => {
-            const onSelect = vi.fn();
-            const onSetAsDefault = vi.fn();
-            render(<CardbackTile {...defaultProps} onSelect={onSelect} onSetAsDefault={onSetAsDefault} />);
-
-            const starButton = screen.getByTitle("Set as default cardback");
-            fireEvent.click(starButton);
-
-            expect(onSetAsDefault).toHaveBeenCalled();
-            expect(onSelect).not.toHaveBeenCalled();
+        it('should not apply green outline when not selected', () => {
+            render(<CardbackTile {...defaultProps} isSelected={false} />);
+            const container = screen.getByTestId('cardback-tile-123').querySelector('div');
+            expect(container?.style.outline).toBe('');
         });
     });
 
     describe("delete functionality (uploaded only)", () => {
-        it("should show delete button for uploaded cardbacks", () => {
-            render(<CardbackTile {...defaultProps} source="uploaded" />);
-            expect(screen.getByTitle("Delete cardback")).toBeDefined();
+        it('should show pencil and trash icons for uploaded cardback only when hovered', () => {
+            render(<CardbackTile {...defaultProps} origin="uploaded" source="My Uploads" />);
+            const trashButton = screen.getByTitle('Delete cardback');
+            const pencilButton = screen.getByTitle('Rename');
+            expect(trashButton).toBeInTheDocument();
+            expect(pencilButton).toBeInTheDocument();
+            const actionContainer = trashButton.closest('.flex.flex-col');
+            expect(actionContainer?.className).toContain('opacity-0');
+            expect(actionContainer?.className).toContain('group-hover:opacity-100');
         });
 
-        it("should not show delete button for builtin cardbacks", () => {
-            render(<CardbackTile {...defaultProps} source="builtin" />);
-            expect(screen.queryByTitle("Delete cardback")).toBeNull();
-        });
-
-        it("should call onDelete when clicking delete button", () => {
-            const onDelete = vi.fn();
-            render(<CardbackTile {...defaultProps} source="uploaded" onDelete={onDelete} />);
-
-            const deleteButton = screen.getByTitle("Delete cardback");
-            fireEvent.click(deleteButton);
-
-            expect(onDelete).toHaveBeenCalled();
-        });
-
-        it("should show confirmation state when isDeleting is true", () => {
-            const { container } = render(<CardbackTile {...defaultProps} source="uploaded" isDeleting={true} />);
-            const confirmButton = container.querySelector("[title='Confirm delete']");
-            expect(confirmButton).toBeDefined();
-        });
-    });
-
-    describe("edit functionality (uploaded only)", () => {
-        it("should show edit button for uploaded cardbacks", () => {
-            render(<CardbackTile {...defaultProps} source="uploaded" />);
-            expect(screen.getByTitle("Edit name")).toBeDefined();
-        });
-
-        it("should not show edit button for builtin cardbacks", () => {
-            render(<CardbackTile {...defaultProps} source="builtin" />);
-            expect(screen.queryByTitle("Edit name")).toBeNull();
-        });
-
-        it("should call onStartEdit when clicking edit button", () => {
-            const onStartEdit = vi.fn();
-            render(<CardbackTile {...defaultProps} source="uploaded" onStartEdit={onStartEdit} />);
-
-            const editButton = screen.getByTitle("Edit name");
-            fireEvent.click(editButton);
-
-            expect(onStartEdit).toHaveBeenCalled();
-        });
-
-        it("should show input field when editing", () => {
-            render(<CardbackTile {...defaultProps} isEditing={true} editingName="New Name" />);
-            const input = screen.getByRole("textbox") as HTMLInputElement;
-            expect(input.value).toBe("New Name");
-        });
-
-        it("should call onEditNameChange when typing in input", () => {
-            const onEditNameChange = vi.fn();
-            render(
-                <CardbackTile
-                    {...defaultProps}
-                    isEditing={true}
-                    editingName="Test"
-                    onEditNameChange={onEditNameChange}
-                />
-            );
-
-            const input = screen.getByRole("textbox");
-            fireEvent.change(input, { target: { value: "New Name" } });
-
-            expect(onEditNameChange).toHaveBeenCalledWith("New Name");
-        });
-
-        it("should call onSaveEdit when pressing Enter", () => {
-            const onSaveEdit = vi.fn();
-            render(
-                <CardbackTile
-                    {...defaultProps}
-                    isEditing={true}
-                    editingName="Test"
-                    onSaveEdit={onSaveEdit}
-                />
-            );
-
-            const input = screen.getByRole("textbox");
-            fireEvent.keyDown(input, { key: "Enter" });
-
-            expect(onSaveEdit).toHaveBeenCalled();
-        });
-
-        it("should call onCancelEdit when pressing Escape", () => {
-            const onCancelEdit = vi.fn();
-            render(
-                <CardbackTile
-                    {...defaultProps}
-                    isEditing={true}
-                    editingName="Test"
-                    onCancelEdit={onCancelEdit}
-                />
-            );
-
-            const input = screen.getByRole("textbox");
-            fireEvent.keyDown(input, { key: "Escape" });
-
-            expect(onCancelEdit).toHaveBeenCalled();
-        });
-
-        it("should call onCancelEdit when input loses focus without saving", () => {
-            const onCancelEdit = vi.fn();
-            const onSaveEdit = vi.fn();
-            render(
-                <CardbackTile
-                    {...defaultProps}
-                    isEditing={true}
-                    editingName="Test"
-                    onCancelEdit={onCancelEdit}
-                    onSaveEdit={onSaveEdit}
-                />
-            );
-
-            const input = screen.getByRole("textbox");
-            fireEvent.blur(input, { relatedTarget: null });
-
-            expect(onCancelEdit.mock.calls.length + onSaveEdit.mock.calls.length).toBeGreaterThanOrEqual(0);
+        it('should NOT show pencil or trash icons for builtin cardback', () => {
+            render(<CardbackTile {...defaultProps} origin="builtin" source="Proxxied" />);
+            expect(screen.queryByTitle('Delete cardback')).toBeNull();
+            expect(screen.queryByTitle('Rename')).toBeNull();
         });
     });
 
     describe("blank cardback", () => {
-        it("should render blank placeholder without image", () => {
-            render(<CardbackTile {...defaultProps} id="cardback_builtin_blank" name="Blank" source="uploaded" />);
-            expect(screen.queryByTestId("card-image-svg")).toBeNull();
-            expect(screen.getAllByText("Blank").length).toBeGreaterThan(0);
+        it('should render MTG cardback (No Back) correctly', () => {
+            render(<CardbackTile {...defaultProps} id="cardback_builtin_blank" />);
+            expect(screen.getByText('No Back')).toBeInTheDocument();
+            expect(screen.queryByTestId('mock-card-image-svg')).toBeNull();
         });
     });
 });

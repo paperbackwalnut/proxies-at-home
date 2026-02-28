@@ -58,6 +58,7 @@ void main() {
     // Ratio = OutputSize / InputSize
     vec2 ratio = uOutputFrame.zw * uInputSize.zw;
     vec2 normalizedCoord = vTextureCoord / ratio;
+    normalizedCoord = clamp(normalizedCoord, 0.0, 1.0);
     
     // Pixel coordinates in the scaled sprite space (matching u_resolution)
     vec2 pixelCoord = normalizedCoord * u_resolution;

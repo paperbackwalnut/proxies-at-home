@@ -9,6 +9,10 @@ if (!globalThis.crypto) {
   globalThis.crypto = webcrypto as unknown as Crypto;
 }
 
+if (!Element.prototype.scrollTo) {
+  Element.prototype.scrollTo = function () { };
+}
+
 // JSDOM doesn't implement Blob.arrayBuffer(), so this polyfills it.
 if (!Blob.prototype.arrayBuffer) {
   Blob.prototype.arrayBuffer = function () {
@@ -48,26 +52,22 @@ vi.stubGlobal('fetch', vi.fn());
 import { db } from './db';
 import { debugLog } from './helpers/debug.ts';
 
-afterAll(async () => {
+afterAll(() => {
   // Ensure we are using real timers for the cleanup delay,
   // in case a test file left fake timers active.
-  vi.useRealTimers();
+  try {
+    vi.useRealTimers();
+  } catch (e) {
+    debugLog('Failed to use real timers in afterAll', e);
+  }
 
   try {
     // Clean up ImageProcessor workers synchronously (now that cancelAll is implemented)
     ImageProcessor.destroyAll();
 
-    // Clean up EffectProcessor workers
-    const { destroyEffectProcessor } = await import('./helpers/effectCache');
-    destroyEffectProcessor();
-
-    // Close Dexie connection with a timeout to prevent hanging
-    if (db) {
-      if (db.isOpen()) {
-        try {
-          db.close();
-        } catch (e) { debugLog(e) }
-      }
+    // Close Dexie connection immediately to prevent hanging
+    if (db && db.isOpen()) {
+      db.close();
     }
   } catch (e) {
     console.error('[vitest.setup] Error during teardown:', e);

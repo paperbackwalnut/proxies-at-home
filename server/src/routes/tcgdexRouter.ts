@@ -18,10 +18,27 @@ function tcgdexAxiosForLang(lang: string) {
     });
 }
 
+// Rate limiting: 150ms between requests to avoid TCGdex CDN/GraphQL throttling
+let lastRequestTime = 0;
+const REQUEST_DELAY_MS = 150;
+
+async function rateLimitedRequest<T>(
+    requestFn: () => Promise<{ data: T }>
+): Promise<T> {
+    const now = Date.now();
+    const elapsed = now - lastRequestTime;
+    if (elapsed < REQUEST_DELAY_MS) {
+        await new Promise((r) => setTimeout(r, REQUEST_DELAY_MS - elapsed));
+    }
+    lastRequestTime = Date.now();
+    const response = await requestFn();
+    return response.data;
+}
+
 const CACHE_TTL = {
-    search: 24 * 60 * 60 * 1000,       
-    card: 7 * 24 * 60 * 60 * 1000,     
-    sets: 24 * 60 * 60 * 1000,        
+    search: 24 * 60 * 60 * 1000,
+    card: 7 * 24 * 60 * 60 * 1000,
+    sets: 24 * 60 * 60 * 1000,
 };
 
 const CACHE_VERSION = "v2";
@@ -92,7 +109,7 @@ function mapTcgdexCard(card: TcgdexCardBrief | TcgdexCardDetail): object {
 
     const imageUrls: string[] = [];
     if (card.image) {
-        imageUrls.push(`${card.image}/high.webp`);
+        imageUrls.push(`${card.image}/high.png`);
     }
 
     const rarity = (card as TcgdexCardDetail).rarity;
@@ -122,11 +139,13 @@ router.get("/search", async (req: Request, res: Response) => {
     }
 
     try {
-        const response = await tcgdexAxiosForLang(lang).get<TcgdexCardBrief[]>("/cards", {
-            params: { name: params.name },
-        });
+        const data = await rateLimitedRequest(() =>
+            tcgdexAxiosForLang(lang).get<TcgdexCardBrief[]>("/cards", {
+                params: { name: params.name },
+            })
+        );
 
-        const cards = (response.data || []).map(mapTcgdexCard);
+        const cards = (data || []).map(mapTcgdexCard);
         const result = { data: cards };
         storeInCache("search", queryHash, result, CACHE_TTL.search);
         return res.json(result);
@@ -155,8 +174,10 @@ router.get("/card/:id", async (req: Request, res: Response) => {
     }
 
     try {
-        const response = await tcgdexAxiosForLang(lang).get<TcgdexCardDetail>(`/cards/${id}`);
-        const card = mapTcgdexCard(response.data);
+        const data = await rateLimitedRequest(() =>
+            tcgdexAxiosForLang(lang).get<TcgdexCardDetail>(`/cards/${id}`)
+        );
+        const card = mapTcgdexCard(data);
         storeInCache("card", queryHash, card, CACHE_TTL.card);
         return res.json(card);
     } catch (err) {
@@ -183,11 +204,13 @@ router.get("/prints", async (req: Request, res: Response) => {
     }
 
     try {
-        const response = await tcgdexAxiosForLang(lang).get<TcgdexCardBrief[]>("/cards", {
-            params: { name: params.name },
-        });
+        const data = await rateLimitedRequest(() =>
+            tcgdexAxiosForLang(lang).get<TcgdexCardBrief[]>("/cards", {
+                params: { name: params.name },
+            })
+        );
 
-        const cards = response.data || [];
+        const cards = data || [];
         const prints = cards
             .filter((c) => c.image)
             .map((c) => {
@@ -195,7 +218,7 @@ router.get("/prints", async (req: Request, res: Response) => {
                 const setCode = dashIdx >= 0 ? c.id.slice(0, dashIdx) : c.id;
                 const cardNumber = dashIdx >= 0 ? c.id.slice(dashIdx + 1) : c.localId;
                 return {
-                    imageUrl: `${c.image}/high.webp`,
+                    imageUrl: `${c.image}/high.png`,
                     set: setCode,
                     number: cardNumber,
                     lang: "en",
@@ -229,8 +252,10 @@ router.get("/sets", async (req: Request, res: Response) => {
     if (cached) return res.json(cached);
 
     try {
-        const response = await tcgdexAxiosForLang(lang).get<TcgdexSetBrief[]>("/sets");
-        const sets = (response.data || []).map((s) => ({
+        const data = await rateLimitedRequest(() =>
+            tcgdexAxiosForLang(lang).get<TcgdexSetBrief[]>("/sets")
+        );
+        const sets = (data || []).map((s) => ({
             id: s.id,
             name: s.name,
             card_count: s.cardCount?.total ?? 0,

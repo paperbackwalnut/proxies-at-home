@@ -1,6 +1,6 @@
 import { generateUUID } from "./uuid";
 
-import { ImageSource } from '../db';
+import { ImageSource } from '@/types';
 
 export type ImportType = 'archidekt' | 'moxfield' | typeof ImageSource.Scryfall | typeof ImageSource.MPC | 'unknown';
 

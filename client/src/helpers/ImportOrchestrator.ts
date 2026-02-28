@@ -3,11 +3,11 @@ import type { TcgId } from "@/config/tcgConfig";
 import { streamCards, type CardInfo } from "./streamCards";
 import { undoableAddCards } from "./undoableActions";
 import { addRemoteImage, createLinkedBackCardsBulk } from "./dbUtils";
-import { ImageSource } from "../db";
+import { ImageSource } from '@/types';
 import { useSettingsStore, useProjectStore, useUserPreferencesStore } from "@/store";
+import { getTcgPrefs } from "@/store/userPreferences";
 import { getMpcAutofillImageUrl } from "./mpcAutofillApi";
 import { findBestMpcMatches } from "./mpcImportIntegration";
-import { isCardbackId } from "./cardbackLibrary";
 import { convertScryfallToCardOptions } from "./cardConverter";
 import { fetchCardBySetAndNumber, fetchCardWithPrints, fetchCardsMetadataBatch } from "./scryfallApi";
 import type { CardOption, TokenPart } from "../../../shared/types";
@@ -20,7 +20,7 @@ import { IMPORT_CONFIG } from "./importConfig";
  * Captured once at import start for consistency across all cards.
  */
 export interface ImportSettings {
-    preferredArtSource: 'scryfall' | 'mpc';
+    preferredArtSource: typeof ImageSource.Scryfall | typeof ImageSource.MPC | typeof ImageSource.UploadLibrary;
     globalLanguage: string;
     autoImportTokens: boolean;
     projectId: string;
@@ -54,6 +54,45 @@ export class ImportOrchestrator {
         this.streamControllers.clear();
     }
 
+    private static extractScryfallMetadata(card: { colors?: string[]; cmc?: number; type_line?: string; rarity?: string; mana_cost?: string; token_parts?: CardOption['token_parts'] }) {
+        return {
+            colors: card.colors,
+            cmc: card.cmc,
+            type_line: card.type_line,
+            rarity: card.rarity,
+            mana_cost: card.mana_cost,
+            token_parts: card.token_parts,
+        };
+    }
+
+    private static async resolveDfcBack(
+        scryfallCard: { card_faces?: Array<{ name: string; imageUrl?: string }>; set?: string; number?: string },
+        quantity: number,
+        options?: { tryMpc?: boolean; cardName?: string },
+    ): Promise<{ imageId: string; name: string } | undefined> {
+        if (!scryfallCard.card_faces || scryfallCard.card_faces.length < 2) return undefined;
+        const backFace = scryfallCard.card_faces[1];
+        let backImageId: string | undefined;
+        if (options?.tryMpc) {
+            try {
+                const backInfo = { name: backFace.name, set: scryfallCard.set, number: scryfallCard.number, isToken: false };
+                const mpcMatches = await findBestMpcMatches([backInfo]);
+                if (mpcMatches.length > 0 && mpcMatches[0].imageUrl) {
+                    backImageId = await addRemoteImage([mpcMatches[0].imageUrl], quantity, 'mpc');
+                    if (backImageId) {
+                        console.debug(`[ImportOrchestrator] Found MPC back face for ${options.cardName}: ${backFace.name}`);
+                    }
+                }
+            } catch (e) {
+                console.warn(`[ImportOrchestrator] Failed MPC back face lookup for ${options.cardName}`, e);
+            }
+        }
+        if (!backImageId && backFace.imageUrl) {
+            backImageId = await addRemoteImage([backFace.imageUrl], quantity, ImageSource.Scryfall);
+        }
+        return backImageId ? { imageId: backImageId, name: backFace.name } : undefined;
+    }
+
     /**
      * Main entry point. Takes a raw list of intents, buckets them by strategy,
      * and executes them (potentially in parallel or sequence).
@@ -74,7 +113,10 @@ export class ImportOrchestrator {
             globalLanguage: useSettingsStore.getState().globalLanguage ?? 'en',
             autoImportTokens: useSettingsStore.getState().autoImportTokens,
             projectId: useProjectStore.getState().currentProjectId!,
-            favoriteScryfallSets: useUserPreferencesStore.getState().preferences?.favoriteScryfallSets,
+            favoriteScryfallSets: getTcgPrefs(
+                useUserPreferencesStore.getState().preferences,
+                useSettingsStore.getState().activeTcg ?? 'mtg'
+            ).favoriteSets,
             activeTcg: useSettingsStore.getState().activeTcg ?? 'mtg',
         };
 
@@ -146,6 +188,7 @@ export class ImportOrchestrator {
                 category: intent.category,
                 projectId,
                 order: intent.order, // Use explicit order if provided
+                source: intent.localImageId ? ImageSource.UploadLibrary : (intent.mpcId ? ImageSource.MPC : (intent.preloadedData ? ImageSource.Scryfall : undefined)),
             }));
         });
 
@@ -202,51 +245,10 @@ export class ImportOrchestrator {
                         if (cleanedName) {
                             const scryfallCard = metadataCache.get(cleanedName.toLowerCase());
                             if (scryfallCard) {
-                                scryfallMetadata = {
-                                    colors: scryfallCard.colors,
-                                    cmc: scryfallCard.cmc,
-                                    type_line: scryfallCard.type_line,
-                                    rarity: scryfallCard.rarity,
-                                    mana_cost: scryfallCard.mana_cost,
-                                    token_parts: scryfallCard.token_parts,
-                                };
-
-                                // Handle DFC Back Face
-                                if (scryfallCard.card_faces && scryfallCard.card_faces.length > 1) {
-                                    const backFace = scryfallCard.card_faces[1];
-
-                                    // 1. Try to find MPC image for the back face first
-                                    let backImageId: string | undefined;
-                                    try {
-                                        // Construct a virtual CardInfo to use the matcher
-                                        const backInfo = {
-                                            name: backFace.name,
-                                            set: scryfallCard.set,
-                                            number: scryfallCard.number,
-                                            isToken: false // Back faces aren't tokens usually
-                                        };
-
-                                        const mpcMatches = await findBestMpcMatches([backInfo]);
-                                        if (mpcMatches.length > 0 && mpcMatches[0].imageUrl) {
-                                            const match = mpcMatches[0];
-                                            backImageId = await addRemoteImage([match.imageUrl], quantity, 'mpc');
-                                            if (backImageId) {
-                                                console.debug(`[ImportOrchestrator] Found MPC back face for ${intent.name}: ${backFace.name}`);
-                                                dfcBackInfo = { imageId: backImageId, name: backFace.name };
-                                            }
-                                        }
-                                    } catch (e) {
-                                        console.warn(`[ImportOrchestrator] Failed MPC back face lookup for ${intent.name}`, e);
-                                    }
-
-                                    // 2. Fallback to Scryfall image if no MPC image found
-                                    if (!backImageId && backFace.imageUrl) {
-                                        backImageId = await addRemoteImage([backFace.imageUrl], quantity, ImageSource.Scryfall);
-                                        if (backImageId) {
-                                            dfcBackInfo = { imageId: backImageId, name: backFace.name };
-                                        }
-                                    }
-                                }
+                                scryfallMetadata = ImportOrchestrator.extractScryfallMetadata(scryfallCard);
+                                dfcBackInfo = await ImportOrchestrator.resolveDfcBack(
+                                    scryfallCard, quantity, { tryMpc: true, cardName: intent.name },
+                                );
                             }
                         }
                     }
@@ -262,24 +264,8 @@ export class ImportOrchestrator {
                             // Look up in batch cache first (fast path)
                             const scryfallCard = metadataCache.get(cleanedName.toLowerCase());
                             if (scryfallCard) {
-                                scryfallMetadata = {
-                                    colors: scryfallCard.colors,
-                                    cmc: scryfallCard.cmc,
-                                    type_line: scryfallCard.type_line,
-                                    rarity: scryfallCard.rarity,
-                                    mana_cost: scryfallCard.mana_cost,
-                                    token_parts: scryfallCard.token_parts,
-                                };
-
-                                if (scryfallCard.card_faces && scryfallCard.card_faces.length > 1) {
-                                    const backFace = scryfallCard.card_faces[1];
-                                    if (backFace.imageUrl) {
-                                        const backId = await addRemoteImage([backFace.imageUrl], quantity, ImageSource.Scryfall);
-                                        if (backId) {
-                                            dfcBackInfo = { imageId: backId, name: backFace.name };
-                                        }
-                                    }
-                                }
+                                scryfallMetadata = ImportOrchestrator.extractScryfallMetadata(scryfallCard);
+                                dfcBackInfo = await ImportOrchestrator.resolveDfcBack(scryfallCard, quantity);
                             }
                         }
                     }
@@ -309,7 +295,8 @@ export class ImportOrchestrator {
                                     // For MPC cards, start with darken-off defaults but merge with intent overrides
                                     overrides: intent.mpcId
                                         ? { ...intent.cardOverrides }
-                                        : (intent.cardOverrides ?? undefined)
+                                        : (intent.cardOverrides ?? undefined),
+                                    source: intent.localImageId ? ImageSource.UploadLibrary : (intent.mpcId ? ImageSource.MPC : ImageSource.Scryfall),
                                 });
                             }
                         });
@@ -321,7 +308,7 @@ export class ImportOrchestrator {
                         let backImageId = explicitBackId;
                         const backName = intent.linkedBackName || 'Back';
 
-                        if (!isCardbackId(backImageId)) {
+                        if (!backImageId.startsWith('cardback_')) {
                             const backUrl = getMpcAutofillImageUrl(backImageId);
                             backImageId = (await addRemoteImage([backUrl], quantity, 'mpc'))!;
                         }
@@ -331,7 +318,7 @@ export class ImportOrchestrator {
                                 frontUuid: uuid,
                                 backImageId: backImageId,
                                 backName: backName,
-                                options: { hasBuiltInBleed: true, usesDefaultCardback: isCardbackId(backImageId) }
+                                options: { hasBuiltInBleed: true, usesDefaultCardback: intent.linkedBackSource === ImageSource.Cardback, source: intent.linkedBackSource }
                             }))
                         );
                     } else if (dfcBackInfo) {
@@ -359,8 +346,9 @@ export class ImportOrchestrator {
             }
         };
 
-        // Fire-and-forget: update cards with images in background
-        void updateCardsWithImages();
+        updateCardsWithImages().catch(err =>
+            console.error('[ImportOrchestrator] Background image resolution failed:', err)
+        );
     }
 
     /**
@@ -368,7 +356,7 @@ export class ImportOrchestrator {
      */
     private static async executeStream(
         intents: ImportIntent[],
-        source: 'mpc' | 'scryfall',
+        source: typeof ImageSource.MPC | typeof ImageSource.Scryfall,
         options: OrchestratorOptions,
         reportProgress: (n: number) => void,
         settings: ImportSettings
@@ -475,6 +463,7 @@ export class ImportOrchestrator {
                 category: intent.category,
                 hasBuiltInBleed: false,
                 needsEnrichment: false,
+                source: ImageSource.Scryfall,
             };
 
             // Expand to quantity
@@ -487,7 +476,8 @@ export class ImportOrchestrator {
                     backCardTasks.push({
                         frontIndex: i,
                         backImageId,
-                        backName: backFaceName || 'Back'
+                        backName: backFaceName || 'Back',
+                        options: { hasBuiltInBleed: false, source: ImageSource.Scryfall }
                     });
                 }
             }
@@ -523,9 +513,10 @@ export class ImportOrchestrator {
                 mana_cost: undefined as string | undefined,
                 token_parts: undefined as TokenPart[] | undefined,
                 needs_token: false,
+                source: ImageSource.MPC,
             };
 
-            const backCardTasks: { frontIndex: number; backImageId: string; backName: string, hasBleed?: boolean }[] = [];
+            const backCardTasks: { frontIndex: number; backImageId: string; backName: string, options?: { hasBuiltInBleed?: boolean, source?: ImageSource } }[] = [];
 
             // DFC & Metadata Enrichment
             try {
@@ -533,35 +524,20 @@ export class ImportOrchestrator {
                 const scryfallCard = await fetchCardWithPrints(intent.name, false, false);
                 if (scryfallCard) {
                     // Enrich metadata
-                    baseCard.needsEnrichment = false; // Successfully enriched
-                    baseCard.colors = scryfallCard.colors;
-                    baseCard.cmc = scryfallCard.cmc;
-                    baseCard.type_line = scryfallCard.type_line;
-                    baseCard.rarity = scryfallCard.rarity;
-                    baseCard.mana_cost = scryfallCard.mana_cost;
-                    baseCard.token_parts = scryfallCard.token_parts;
-                    baseCard.needs_token = !!scryfallCard.token_parts?.length;
-
-                    // handle DFC back
-                    // Priority: Explicit Intent > Scryfall DFC
-                    if (intent.linkedBackImageId) {
-                        // Explicit back handling (already in ResolvedCardData structure?)
-                        // Actually, for explicit backs in 'resolve', we usually handle them via backCardTasks too?
-                        // Let's check how 'resolve' handles explicit backs...
-                        // It seems separate? No, 'resolve' is supposed to return everything needed.
-                    } else if (scryfallCard.card_faces && scryfallCard.card_faces.length > 1) {
-                        const backFace = scryfallCard.card_faces[1];
-                        if (backFace.imageUrl) {
-                            const backId = await addRemoteImage([backFace.imageUrl], quantity, ImageSource.Scryfall);
-                            if (backId) {
-                                for (let i = 0; i < quantity; i++) {
-                                    backCardTasks.push({
-                                        frontIndex: i,
-                                        backImageId: backId,
-                                        backName: backFace.name,
-                                        hasBleed: false
-                                    });
-                                }
+                    baseCard.needsEnrichment = false;
+                    const meta = ImportOrchestrator.extractScryfallMetadata(scryfallCard);
+                    Object.assign(baseCard, meta);
+                    baseCard.needs_token = !!meta.token_parts?.length;
+                    if (!intent.linkedBackImageId) {
+                        const dfcBack = await ImportOrchestrator.resolveDfcBack(scryfallCard, quantity);
+                        if (dfcBack) {
+                            for (let i = 0; i < quantity; i++) {
+                                backCardTasks.push({
+                                    frontIndex: i,
+                                    backImageId: dfcBack.imageId,
+                                    backName: dfcBack.name,
+                                    options: { hasBuiltInBleed: false, source: ImageSource.Scryfall }
+                                });
                             }
                         }
                     }
@@ -578,7 +554,7 @@ export class ImportOrchestrator {
                 let backImageId = intent.linkedBackImageId;
                 const backName = intent.linkedBackName || 'Back';
 
-                if (!isCardbackId(backImageId)) {
+                if (intent.linkedBackSource !== ImageSource.Cardback) {
                     const backUrl = getMpcAutofillImageUrl(backImageId);
                     backImageId = (await addRemoteImage([backUrl], quantity, 'mpc'))!;
                 }
@@ -588,7 +564,7 @@ export class ImportOrchestrator {
                         frontIndex: i,
                         backImageId,
                         backName,
-                        hasBleed: true
+                        options: { hasBuiltInBleed: true, source: intent.linkedBackSource }
                     });
                 }
             }

@@ -130,18 +130,25 @@ describe("mpcAutofillApi", () => {
 
     describe("searchMpcAutofill", () => {
         it("should parse card names before returning results", async () => {
-            // Setup: API returns unparsed names
-            const mockResponse = {
-                cards: [
-                    { identifier: "id1", name: "Deflecting Swat (Borderless Greg Staples)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" },
-                    { identifier: "id2", name: "Deflecting Swat {311} (Patrick Gañas) (Elemental Frame)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" },
-                ],
-            };
             mockGetCachedMpcSearch.mockResolvedValue(null); // No cache hit
-            vi.mocked(fetch).mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve(mockResponse),
-            } as Response);
+            vi.mocked(fetch).mockImplementation(async (...args: Parameters<typeof fetch>) => {
+                const url = args[0] as string;
+                if (url.includes("/ids")) {
+                    return { ok: true, json: () => Promise.resolve({ identifiers: ["id1", "id2"] }) } as Response;
+                }
+                if (url.includes("/details")) {
+                    return {
+                        ok: true,
+                        json: () => Promise.resolve({
+                            results: {
+                                id1: { identifier: "id1", name: "Deflecting Swat (Borderless Greg Staples)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" },
+                                id2: { identifier: "id2", name: "Deflecting Swat {311} (Patrick Gañas) (Elemental Frame)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" }
+                            }
+                        })
+                    } as Response;
+                }
+                return { ok: false } as Response;
+            });
 
             const results = await searchMpcAutofill("Deflecting Swat");
 
@@ -151,16 +158,24 @@ describe("mpcAutofillApi", () => {
         });
 
         it("should cache parsed names, not unparsed names", async () => {
-            const mockResponse = {
-                cards: [
-                    { identifier: "id1", name: "Sol Ring {C21} (Artist Name)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" },
-                ],
-            };
             mockGetCachedMpcSearch.mockResolvedValue(null);
-            vi.mocked(fetch).mockResolvedValue({
-                ok: true,
-                json: () => Promise.resolve(mockResponse),
-            } as Response);
+            vi.mocked(fetch).mockImplementation(async (...args: Parameters<typeof fetch>) => {
+                const url = args[0] as string;
+                if (url.includes("/ids")) {
+                    return { ok: true, json: () => Promise.resolve({ identifiers: ["id1"] }) } as Response;
+                }
+                if (url.includes("/details")) {
+                    return {
+                        ok: true,
+                        json: () => Promise.resolve({
+                            results: {
+                                id1: { identifier: "id1", name: "Sol Ring {C21} (Artist Name)", dpi: 300, tags: [], sourceName: "Test", source: "test", extension: "png", size: 1000, smallThumbnailUrl: "", mediumThumbnailUrl: "" }
+                            }
+                        })
+                    } as Response;
+                }
+                return { ok: false } as Response;
+            });
 
             await searchMpcAutofill("Sol Ring");
 

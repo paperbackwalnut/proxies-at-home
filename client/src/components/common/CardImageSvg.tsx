@@ -19,6 +19,8 @@ interface CardImageSvgProps {
     };
     /** Whether to round corners (default: true) */
     rounded?: boolean;
+    /** Whether to use lazy loading (default: true) */
+    lazy?: boolean;
 }
 
 /**
@@ -32,59 +34,90 @@ export const CardImageSvg: React.FC<CardImageSvgProps> = ({
     id,
     bleed,
     rounded = true,
+    lazy = true,
 }) => {
     const svgRef = useRef<SVGSVGElement>(null);
-    const [isVisible, setIsVisible] = useState(false);
+    const [isVisible, setIsVisible] = useState(!lazy);
     const [hasLoaded, setHasLoaded] = useState(false);
     const [useFallback, setUseFallback] = useState(false);
 
+    // Track previous successful URL for smooth transitions
+    const [previousUrl, setPreviousUrl] = useState<string | null>(null);
+    const [previousLoaded, setPreviousLoaded] = useState(false);
+
+    // Track previous values to detect changes without triggering loops
+    const prevPropsRef = useRef({ id, url, fallbackUrl });
+
     // ViewBox always defines the "visible" card area
-    // For bleed images, we start the viewBox offset by the bleed amount
+    // The width/height of the viewBox is always the target card dimensions (63x88).
+    // The viewBox origin (x,y) defines what part of the SVG space maps to the top-left of the viewport.
     const viewBoxX = bleed ? bleed.amountMm : 0;
     const viewBoxY = bleed ? bleed.amountMm : 0;
 
     const clipId = `clip-${id}`;
 
-    // Reset states when URL changes (including isVisible for re-sorted cards)
+    // 1. Manage Loading State and Transitions
     useEffect(() => {
-        setHasLoaded(false);
-        setUseFallback(false);
-        // Don't reset isVisible here - it's managed by IntersectionObserver
-    }, [url]);
+        const urlChanged = url !== prevPropsRef.current.url || fallbackUrl !== prevPropsRef.current.fallbackUrl;
+        const idChanged = id !== prevPropsRef.current.id;
 
-    // Set up IntersectionObserver for lazy loading
-    // Once visible, stay loaded (URL is now static, no need to track exit)
-    // Re-run when url changes to handle sorted/reordered cards
+        if (urlChanged) {
+            if (hasLoaded && !useFallback) {
+                setPreviousUrl(prevPropsRef.current.url);
+                setPreviousLoaded(true);
+            } else if (hasLoaded && useFallback && prevPropsRef.current.fallbackUrl) {
+                setPreviousUrl(prevPropsRef.current.fallbackUrl);
+                setPreviousLoaded(true);
+            }
+            setHasLoaded(false);
+            setUseFallback(false);
+        }
+
+        if (urlChanged || idChanged) {
+            prevPropsRef.current = { id, url, fallbackUrl };
+        }
+    }, [id, url, fallbackUrl, hasLoaded, useFallback]);
+
+    // Safety timeout: clear blur state if onLoad never fires
     useEffect(() => {
+        if (!previousLoaded || hasLoaded) return;
+        const timer = setTimeout(() => {
+            setPreviousLoaded(false);
+            setPreviousUrl(null);
+        }, 2000);
+        return () => clearTimeout(timer);
+    }, [previousLoaded, hasLoaded]);
+
+    // 2. Manage Intersection/Visibility (Lazy Loading)
+    useEffect(() => {
+        // If not lazy, or already marked visible, no need to observe
+        if (!lazy || isVisible) {
+            setIsVisible(true);
+            return;
+        }
+
         const svg = svgRef.current;
         if (!svg) return;
-
-        // Reset visibility when url changes to re-observe
-        setIsVisible(false);
 
         const observer = new IntersectionObserver(
             (entries) => {
                 entries.forEach((entry) => {
                     if (entry.isIntersecting) {
                         setIsVisible(true);
-                        // Once visible, stop observing (image stays loaded)
-                        observer.unobserve(svg);
+                        // Once visible, it stays visible for this component's lifespan
+                        // to avoid re-observation cycles during URL swaps.
                     }
                 });
             },
             {
-                // Start loading slightly before the element comes into view
                 rootMargin: '100px',
                 threshold: 0,
             }
         );
 
         observer.observe(svg);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, [url]);
+        return () => observer.disconnect();
+    }, [lazy, isVisible]);
 
     // Determine actual URL to use (primary or fallback)
     const actualUrl = useFallback && fallbackUrl ? fallbackUrl : url;
@@ -115,8 +148,8 @@ export const CardImageSvg: React.FC<CardImageSvgProps> = ({
                 )}
             </defs>
 
-            {/* Placeholder background while loading */}
-            {!hasLoaded && (
+            {/* Placeholder background while nothing is loaded */}
+            {!hasLoaded && !previousLoaded && (
                 <rect
                     x={viewBoxX}
                     y={viewBoxY}
@@ -129,8 +162,22 @@ export const CardImageSvg: React.FC<CardImageSvgProps> = ({
                 />
             )}
 
+            {/* Render previous image if doing a resolution swap to prevent flashing */}
+            {isVisible && previousLoaded && previousUrl && !hasLoaded && (
+                <image
+                    href={previousUrl}
+                    x="0"
+                    y="0"
+                    width={bleed ? bleed.sourceWidthMm : CONSTANTS.CARD_WIDTH_MM}
+                    height={bleed ? bleed.sourceHeightMm : CONSTANTS.CARD_HEIGHT_MM}
+                    preserveAspectRatio="xMidYMid slice"
+                    clipPath={rounded ? `url(#${clipId})` : undefined}
+                    style={{ opacity: 1, filter: 'blur(2px)' }} // Slight blur implies it's upgrading
+                />
+            )}
+
             {/* Only render image element when visible, hide until loaded */}
-            {isVisible && (
+            {isVisible && renderUrl && (
                 <image
                     href={renderUrl}
                     x="0"
@@ -140,8 +187,13 @@ export const CardImageSvg: React.FC<CardImageSvgProps> = ({
                     height={bleed ? bleed.sourceHeightMm : CONSTANTS.CARD_HEIGHT_MM}
                     preserveAspectRatio="xMidYMid slice"
                     clipPath={rounded ? `url(#${clipId})` : undefined}
-                    style={{ opacity: hasLoaded ? 1 : 0 }}
-                    onLoad={() => setHasLoaded(true)}
+                    style={{ opacity: hasLoaded ? 1 : 0, transition: previousLoaded ? 'opacity 0.3s ease-in' : 'none' }}
+                    onLoad={() => {
+                        setHasLoaded(true);
+                        // Once new image loads, clear the previous one
+                        setPreviousLoaded(false);
+                        setPreviousUrl(null);
+                    }}
                     onError={() => {
                         // Switch to fallback URL if available and not already using it
                         if (fallbackUrl && !useFallback) {

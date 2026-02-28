@@ -19,10 +19,6 @@ export interface MpcAutofillCard {
     size: number;
 }
 
-interface MpcSearchResponse {
-    cards: MpcAutofillCard[];
-    error?: string;
-}
 
 interface MpcBatchSearchResponse {
     results: Record<string, MpcAutofillCard[]>;
@@ -56,20 +52,13 @@ export async function searchMpcAutofill(
     }
 
     try {
-        const response = await fetch(`${API_BASE}/api/mpcfill/search`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: query.trim(), cardType, fuzzySearch }),
-        });
+        const ids = await searchMpcIdentifiers(query.trim(), cardType, fuzzySearch);
+        if (ids.length === 0) return [];
 
-        if (!response.ok) {
-            console.error("[MPC Autofill] Search failed:", response.status);
-            return [];
-        }
+        const cardMap = await fetchMpcCardDetails(ids);
 
-        const data: MpcSearchResponse = await response.json();
-        // Parse card names to extract base names (strips { } and ( ) suffixes)
-        const cards = (data.cards || []).map((card) => ({
+        // Parse card names to extract base names
+        const cards = Object.values(cardMap).map((card) => ({
             ...card,
             name: parseMpcCardName(card.name, card.name),
         }));
@@ -83,6 +72,80 @@ export async function searchMpcAutofill(
     } catch (err) {
         console.error("[MPC Autofill] Search error:", err);
         return [];
+    }
+}
+
+/**
+ * Get identifiers matching a query from MPC Autofill.
+ */
+export async function searchMpcIdentifiers(
+    query: string,
+    cardType: "CARD" | "CARDBACK" | "TOKEN" = "CARD",
+    fuzzySearch: boolean = true
+): Promise<string[]> {
+    try {
+        const response = await fetch(`${API_BASE}/api/mpcfill/ids`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query: query || null, cardType, fuzzySearch }),
+        });
+
+        if (!response.ok) {
+            console.error("[MPC Autofill] ID search failed:", response.status);
+            return [];
+        }
+
+        const data = await response.json();
+        return data.identifiers || [];
+    } catch (err) {
+        console.error("[MPC Autofill] ID search error:", err);
+        return [];
+    }
+}
+
+/**
+ * Fetch full card details for a batch of identifiers.
+ */
+export async function fetchMpcCardDetails(
+    identifiers: string[]
+): Promise<Record<string, MpcAutofillCard>> {
+    if (identifiers.length === 0) return {};
+
+    try {
+        const response = await fetch(`${API_BASE}/api/mpcfill/details`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardIdentifiers: identifiers }),
+        });
+
+        if (!response.ok) {
+            console.error("[MPC Autofill] Details fetch failed:", response.status);
+            return {};
+        }
+
+        const data = await response.json();
+        return data.results || {};
+    } catch (err) {
+        console.error("[MPC Autofill] Details fetch error:", err);
+        return {};
+    }
+}
+
+/**
+ * Fetch the prebuilt list of all cardbacks from the server.
+ */
+export async function fetchPrebuiltCardbacks(): Promise<Record<string, MpcAutofillCard>> {
+    try {
+        const response = await fetch(`${API_BASE}/api/mpcfill/cardbacks`);
+        if (!response.ok) {
+            console.error("[MPC Autofill] Prebuilt cardbacks fetch failed:", response.status);
+            return {};
+        }
+        const data = await response.json();
+        return data.results || {};
+    } catch (err) {
+        console.error("[MPC Autofill] Prebuilt cardbacks fetch error:", err);
+        return {};
     }
 }
 
@@ -162,10 +225,15 @@ export async function batchSearchMpcAutofill(
 }
 
 /**
- * Get the full-resolution image URL for an MPC card
- * Uses the existing MPC proxy endpoint
+ * Get the image URL for an MPC card.
+ * - For thumbnails (small/large): returns the MPC Autofill CDN URL directly,
+ *   bypassing our server proxy to avoid overwhelming it with concurrent requests.
+ * - For full-res: uses the server proxy which handles Google Drive fallback and caching.
  */
 export function getMpcAutofillImageUrl(identifier: string, size: "small" | "large" | "full" = "full"): string {
+    if (size !== "full") {
+        return `https://img.mpcautofill.com/${identifier}-${size}-google_drive`;
+    }
     return getMpcImageUrl(identifier, size) || "";
 }
 

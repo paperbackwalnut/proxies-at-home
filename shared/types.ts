@@ -7,6 +7,19 @@ export const DarkenMode = {
 
 export type DarkenMode = typeof DarkenMode[keyof typeof DarkenMode];
 
+// Image source types for explicit tracking
+export const ImageSource = {
+  MPC: 'mpc',
+  Scryfall: 'scryfall',
+  TCGdex: 'tcgdex',
+  UploadLibrary: 'upload-library',
+  Cardback: 'cardback'
+} as const;
+
+export type ImageSource = (typeof ImageSource)[keyof typeof ImageSource];
+
+export type CardbackSource = 'builtin' | 'uploaded' | 'mpc';
+
 /**
  * Per-card rendering overrides.
  * Used in the Card Editor for fine-tuning individual cards.
@@ -126,10 +139,12 @@ export interface CardOption {
   isToken?: boolean; // True if this card IS a token (for filtering)
   // Project scope
   projectId?: string;
+  source?: ImageSource;
 }
 
 export interface PrintInfo {
   imageUrl: string;
+  thumbnailUrl?: string;
   set: string;
   number: string;
   lang?: string;
@@ -156,6 +171,7 @@ export interface ScryfallCard {
   card_faces?: Array<{
     name: string;
     imageUrl?: string;
+    thumbnailUrl?: string;
   }>;
   // Token metadata
   token_parts?: TokenPart[]; // Associated tokens this card can create
@@ -179,6 +195,7 @@ export type CardInfo = {
   linkedBackNumber?: string;
   preferredImageId?: string; // Specific Scryfall/URL image to use
   order?: number; // Specific sort order
+  source?: ImageSource;
 };
 
 /**

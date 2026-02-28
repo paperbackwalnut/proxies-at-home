@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { Star } from "lucide-react";
 import { SelectDropdown, MultiSelectDropdown } from "..";
 import { SharedFilterLayout } from "./SharedFilterLayout";
+import { SourceFilterDropdown } from "./SourceFilterDropdown";
 import { useUserPreferencesStore, useSettingsStore } from "@/store";
 import type { MpcAutofillCard } from "@/helpers/mpcAutofillApi";
 import type { MpcFilterState } from "@/hooks/useMpcSearch";
@@ -41,56 +42,24 @@ export function MpcFilterBar(props: MpcFilterProps) {
     const [showMinDpiDropdown, setShowMinDpiDropdown] = useState(false);
     const [showSourceDropdown, setShowSourceDropdown] = useState(false);
     const [showTagDropdown, setShowTagDropdown] = useState(false);
-
-    // Search queries for dropdowns
-    const [sourceSearchQuery, setSourceSearchQuery] = useState("");
     const [tagSearchQuery, setTagSearchQuery] = useState("");
 
-    // --- Stable Sort States (Freeze order while dropdown is open) ---
-    const [stableMpcSources, setStableMpcSources] = useState<
-        { name: string; hasResults: boolean }[]
-    >([]);
-    const [stableMpcTags, setStableMpcTags] = useState<
-        { name: string; hasResults: boolean }[]
-    >([]);
-
-    // --- Hooks & Data ---
-
-    // Select stable references from store
     const preferences = useUserPreferencesStore((state) => state.preferences);
-
-    // Actions are stable in Zustand
-    const toggleFavoriteMpcSource = useUserPreferencesStore(
-        (s) => s.toggleFavoriteMpcSource
-    );
-    const toggleFavoriteMpcTag = useUserPreferencesStore(
-        (s) => s.toggleFavoriteMpcTag
-    );
+    const toggleFavoriteMpcSource = useUserPreferencesStore((s) => s.toggleFavoriteMpcSource);
+    const toggleFavoriteMpcTag = useUserPreferencesStore((s) => s.toggleFavoriteMpcTag);
     const setFavoriteMpcDpi = useUserPreferencesStore((s) => s.setFavoriteMpcDpi);
-    const setFavoriteMpcSort = useUserPreferencesStore(
-        (s) => s.setFavoriteMpcSort
-    );
-    const setFavoriteMpcGroupBySource = useUserPreferencesStore(
-        (s) => s.setFavoriteMpcGroupBySource
-    );
+    const setFavoriteMpcSort = useUserPreferencesStore((s) => s.setFavoriteMpcSort);
+    const setFavoriteMpcGroupBySource = useUserPreferencesStore((s) => s.setFavoriteMpcGroupBySource);
 
-    // Derived values
     const favoriteMpcDpi = preferences?.favoriteMpcDpi || null;
     const favoriteMpcSort = preferences?.favoriteMpcSort || null;
     const mpcFuzzySearch = useSettingsStore((s) => s.mpcFuzzySearch);
     const setMpcFuzzySearch = useSettingsStore((s) => s.setMpcFuzzySearch);
 
-    // Favorites
     const favoriteMpcSources = preferences?.favoriteMpcSources || EMPTY_ARRAY;
     const favoriteMpcTags = preferences?.favoriteMpcTags || EMPTY_ARRAY;
 
-    // Track recently-unfavorited items so they stay visible until dropdown closes
-    const [recentlyUnfavoritedSources, setRecentlyUnfavoritedSources] = useState<
-        Set<string>
-    >(new Set());
-    const [recentlyUnfavoritedTags, setRecentlyUnfavoritedTags] = useState<
-        Set<string>
-    >(new Set());
+    const [recentlyUnfavoritedTags, setRecentlyUnfavoritedTags] = useState<Set<string>>(new Set());
 
     // --- Computed Data ---
 
@@ -100,7 +69,6 @@ export function MpcFilterBar(props: MpcFilterProps) {
         const allSourcesSet = new Set([
             ...sourcesInResults,
             ...favoriteMpcSources,
-            ...recentlyUnfavoritedSources,
         ]);
         const allSources = Array.from(allSourcesSet)
             .map((name) => ({ name, hasResults: sourcesInResults.has(name) }))
@@ -111,7 +79,6 @@ export function MpcFilterBar(props: MpcFilterProps) {
                 if (!aFav && bFav) return 1;
                 return a.name.localeCompare(b.name);
             });
-
         const tagsInResults = new Set(cards.flatMap((c) => c.tags || []));
         const allTagsSet = new Set([
             ...tagsInResults,
@@ -127,25 +94,17 @@ export function MpcFilterBar(props: MpcFilterProps) {
                 if (!aFav && bFav) return 1;
                 return a.name.localeCompare(b.name);
             });
-
         return { allSources, allTags, sourcesInResults, tagsInResults };
     }, [
         cards,
         favoriteMpcSources,
         favoriteMpcTags,
-        recentlyUnfavoritedSources,
         recentlyUnfavoritedTags,
     ]);
-
     // --- Stable Sort Effects ---
-
-    // Sync stable sources when dropdown is closed or on first load (if empty)
-    useEffect(() => {
-        if (!showSourceDropdown || stableMpcSources.length === 0) {
-            setStableMpcSources(mpcData.allSources || []);
-        }
-    }, [mpcData, showSourceDropdown, stableMpcSources.length]);
-
+    const [stableMpcTags, setStableMpcTags] = useState<
+        { name: string; hasResults: boolean }[]
+    >([]);
     // Sync stable tags
     useEffect(() => {
         if (!showTagDropdown || stableMpcTags.length === 0) {
@@ -347,132 +306,17 @@ export function MpcFilterBar(props: MpcFilterProps) {
                 ))}
             </SelectDropdown>
 
-            {/* Source Dropdown */}
-            {/* Always render trigger, conditionally render content if needed by parent (but MultiSelectDropdown usually handles its own trigger rendering) */}
-            <MultiSelectDropdown
-                label="Source"
-                buttonText="Any"
-                selectedCount={props.filters.sourceFilters.size}
+            <SourceFilterDropdown
+                items={mpcData.allSources}
+                selectedFilters={props.filters.sourceFilters}
+                favoriteItems={favoriteMpcSources}
+                onToggleFilter={(name) => props.toggleSource(name)}
+                onSetFilters={props.setSourceFilters}
+                onToggleFavorite={toggleFavoriteMpcSource}
                 isOpen={showSourceDropdown}
                 onToggle={() => setShowSourceDropdown(!showSourceDropdown)}
-                onClose={() => {
-                    setShowSourceDropdown(false);
-                    setRecentlyUnfavoritedSources(new Set());
-                    setSourceSearchQuery("");
-                }}
-            >
-                <div className="sticky top-0 z-10 p-2 bg-white dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600">
-                    <input
-                        type="text"
-                        placeholder="Search sources..."
-                        value={sourceSearchQuery}
-                        onChange={(e) => setSourceSearchQuery(e.target.value)}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                </div>
-                <button
-                    onClick={() => {
-                        if (props.filters.sourceFilters.size > 0) {
-                            props.setSourceFilters(new Set());
-                        } else {
-                            // Select all from CURRENT stable list
-                            props.setSourceFilters(
-                                new Set(
-                                    stableMpcSources
-                                        .filter((s) => s.hasResults)
-                                        .map((s) => s.name)
-                                )
-                            );
-                        }
-                    }}
-                    className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400"
-                >
-                    {props.filters.sourceFilters.size > 0 ? "Clear All" : "Select All"}
-                </button>
-                {favoriteMpcSources.length > 0 && (
-                    <button
-                        onClick={() => {
-                            const anyFavsSelected = favoriteMpcSources.some((s) =>
-                                props.filters.sourceFilters.has(s)
-                            );
-                            if (anyFavsSelected) {
-                                props.setSourceFilters((prev) => {
-                                    const next = new Set(prev);
-                                    favoriteMpcSources.forEach((s) => next.delete(s));
-                                    return next;
-                                });
-                            } else {
-                                props.setSourceFilters((prev) => {
-                                    const next = new Set(prev);
-                                    favoriteMpcSources.forEach((s) => next.add(s));
-                                    return next;
-                                });
-                            }
-                        }}
-                        className="w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 border-t border-gray-100 dark:border-gray-600"
-                    >
-                        {favoriteMpcSources.some((s) =>
-                            props.filters.sourceFilters.has(s)
-                        )
-                            ? "Clear Favorites"
-                            : "Select Favorites"}
-                    </button>
-                )}
-                {stableMpcSources
-                    .filter(
-                        (s) =>
-                            !sourceSearchQuery ||
-                            s.name.toLowerCase().includes(sourceSearchQuery.toLowerCase())
-                    )
-                    .map((s) => (
-                        <div
-                            key={s.name}
-                            className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-600"
-                        >
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (favoriteMpcSources.includes(s.name)) {
-                                        setRecentlyUnfavoritedSources(
-                                            (prev) => new Set([...prev, s.name])
-                                        );
-                                    }
-                                    toggleFavoriteMpcSource(s.name);
-                                }}
-                                className="p-0.5 hover:text-yellow-500 transition-colors"
-                                title={
-                                    favoriteMpcSources.includes(s.name)
-                                        ? "Remove from favorites"
-                                        : "Add to favorites"
-                                }
-                            >
-                                <Star
-                                    className={`w-3.5 h-3.5 ${favoriteMpcSources.includes(s.name) ? "fill-yellow-400 text-yellow-400" : "text-gray-400"}`}
-                                />
-                            </button>
-                            <label
-                                className={`flex items-center gap-2 flex-1 min-w-0 ${s.hasResults ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={
-                                        props.filters.sourceFilters.has(s.name) && s.hasResults
-                                    }
-                                    onChange={() => s.hasResults && props.toggleSource(s.name)}
-                                    disabled={!s.hasResults}
-                                    className="rounded"
-                                />
-                                <span
-                                    className={`text-sm truncate ${s.hasResults ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-gray-500"}`}
-                                >
-                                    {s.name}
-                                    {!s.hasResults && " (no results)"}
-                                </span>
-                            </label>
-                        </div>
-                    ))}
-            </MultiSelectDropdown>
+                onClose={() => setShowSourceDropdown(false)}
+            />
 
             {/* Tag Dropdown */}
             <MultiSelectDropdown
@@ -553,6 +397,7 @@ export function MpcFilterBar(props: MpcFilterProps) {
                         >
                             <button
                                 onClick={(e) => {
+                                    e.preventDefault();
                                     e.stopPropagation();
                                     if (favoriteMpcTags.includes(t.name)) {
                                         setRecentlyUnfavoritedTags(

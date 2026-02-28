@@ -208,13 +208,28 @@ export function UploadLibraryEditor({ isOpen, onClose }: UploadLibraryEditorProp
         setContextMenu({ visible: true, x: e.clientX, y: e.clientY, hash });
     }, []);
 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         if (!isOpen) return;
         const handler = (e: KeyboardEvent) => {
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
             if (e.key === 'Escape' && selectedHashes.size > 0) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
                 setSelectedHashes(new Set());
+            } else if (e.ctrlKey && e.key === 'ArrowUp') {
+                e.preventDefault();
+                scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            } else if (e.ctrlKey && e.key === 'ArrowDown') {
+                e.preventDefault();
+                const container = scrollContainerRef.current;
+                if (container) {
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                }
             }
         };
         window.addEventListener('keydown', handler, { capture: true });
@@ -228,6 +243,7 @@ export function UploadLibraryEditor({ isOpen, onClose }: UploadLibraryEditorProp
             <ResponsiveModal isOpen={isOpen} onClose={onClose} title="Manage Uploads">
                 <div className="flex-1 flex flex-col overflow-hidden min-h-0 relative bg-gray-50 dark:bg-gray-700">
                     <div
+                        ref={scrollContainerRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide p-4"
                         onClick={(e) => { if (e.target === e.currentTarget) setSelectedHashes(new Set()); }}
                     >

@@ -21,6 +21,8 @@ export interface ScryfallSearchResult {
   hasSearched: boolean;
   /** Whether there are any results */
   hasResults: boolean;
+  /** The exact query that was last successfully searched or initialized */
+  lastSearchedName: string;
 }
 
 export interface UseScryfallSearchOptions {
@@ -96,8 +98,9 @@ export function useScryfallSearch(
     if (cachedResult !== null) {
       setCards(cachedResult);
       setHasSearched(true);
+      currentQueryRef.current = query;
     }
-  }, [cachedResult]);
+  }, [cachedResult, query]);
 
   // Search effect
   useEffect(() => {
@@ -114,6 +117,7 @@ export function useScryfallSearch(
 
     const performSearch = async () => {
       if (!query || !query.trim()) {
+        setIsLoading(false);
         setCards([]); // Clear cards if query is empty
         return;
       }
@@ -145,6 +149,7 @@ export function useScryfallSearch(
       abortControllerRef.current = controller;
 
       try {
+        // Do not reset previous cards here to avoid flashes
         setIsLoading(true);
 
         let resultCards: ScryfallCard[] = [];
@@ -246,7 +251,6 @@ export function useScryfallSearch(
         // Cache and update state
         globalSearchCache[cacheKey] = resultCards;
         setCards(resultCards);
-        setHasSearched(true);
       } catch (err) {
         if (err instanceof Error && err.name !== "AbortError") {
           if (cacheKey) globalSearchCache[cacheKey] = [];
@@ -254,6 +258,7 @@ export function useScryfallSearch(
         }
       } finally {
         setIsLoading(false);
+        setHasSearched(true);
       }
     };
 
@@ -274,5 +279,6 @@ export function useScryfallSearch(
     isLoading,
     hasSearched,
     hasResults: cards.length > 0,
+    lastSearchedName: currentQueryRef.current,
   };
 }

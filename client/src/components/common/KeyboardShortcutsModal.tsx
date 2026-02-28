@@ -10,10 +10,10 @@ interface Shortcut {
     keys: string[];
     description: string;
 }
-
-const shortcuts: Shortcut[] = [
+const shortcuts = [
     { keys: ['Ctrl', 'Z'], description: 'Undo' },
-    { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo' },
+    { keys: ['Ctrl', 'Y'], description: 'Redo' },
+    { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo (alt)' },
     { keys: ['Ctrl', 'A'], description: 'Select All Cards' },
     { keys: ['Ctrl', 'C'], description: 'Copy Selected Card Names' },
     { keys: ['Ctrl', 'X'], description: 'Cut Selected Cards (Copy + Delete)' },
@@ -21,6 +21,8 @@ const shortcuts: Shortcut[] = [
     { keys: ['Ctrl', 'Delete'], description: 'Delete Selected Cards' },
     { keys: ['Ctrl', '/'], description: 'Show Keyboard Shortcuts' },
     { keys: ['Ctrl', '\\'], description: 'Show Keyboard Shortcuts (alt)' },
+    { keys: ['Ctrl', 'Up'], description: 'Scroll to Top' },
+    { keys: ['Ctrl', 'Down'], description: 'Scroll to Bottom' },
     { keys: ['Esc'], description: 'Clear Selection' },
     { keys: ['F'], description: 'Flip Selected Cards' },
     { keys: ['Click'], description: 'Select Card' },

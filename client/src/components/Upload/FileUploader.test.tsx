@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { ImageSource } from '@/types';
 
 // Mock dependencies
 vi.mock('@/helpers/mpc', () => ({
@@ -36,11 +37,7 @@ vi.mock('@/db', () => ({
             toArray: vi.fn().mockResolvedValue([]),
         },
     },
-    ImageSource: {
-        Scryfall: "scryfall",
-        MPC: "mpc",
-        UploadLibrary: "upload-library"
-    }
+    ImageSource,
 }));
 
 import { FileUploader } from './FileUploader';

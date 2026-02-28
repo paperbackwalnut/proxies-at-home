@@ -4,7 +4,7 @@ import { recordSettingChange } from "../helpers/undoableSettings";
 import { useUndoRedoStore } from "./undoRedo";
 import { CONSTANTS } from "@/constants/commonConstants";
 import { DarkenMode } from '../../../shared/types';
-import { ImageSource } from '../db';
+import { ImageSource } from '@/types';
 
 export type LayoutPreset = "A4" | "A3" | "Letter" | "Tabloid" | "Legal" | "ArchA" | "ArchB" | "SuperB" | "A2" | "A1" | "Custom";
 export type PageOrientation = "portrait" | "landscape";
@@ -64,6 +64,8 @@ export type Store = {
   setDarkenApplyToMpc: (value: boolean) => void;
   darkenApplyToUploads: boolean;
   setDarkenApplyToUploads: (value: boolean) => void;
+  darkenApplyToCardbacks: boolean;
+  setDarkenApplyToCardbacks: (value: boolean) => void;
   guideColor: string;
   setGuideColor: (value: string) => void;
   guideWidth: number;
@@ -141,8 +143,8 @@ export type Store = {
   mpcFuzzySearch: boolean;
   setMpcFuzzySearch: (enabled: boolean) => void;
   // Preferred art source when opening artwork modal
-  preferredArtSource: typeof ImageSource.Scryfall | typeof ImageSource.MPC;
-  setPreferredArtSource: (value: typeof ImageSource.Scryfall | typeof ImageSource.MPC) => void;
+  preferredArtSource: typeof ImageSource.Scryfall | typeof ImageSource.MPC | typeof ImageSource.UploadLibrary;
+  setPreferredArtSource: (value: typeof ImageSource.Scryfall | typeof ImageSource.MPC | typeof ImageSource.UploadLibrary) => void;
   activeTcg: TcgId;
   setActiveTcg: (value: TcgId) => void;
   setAllSettings: (settings: Partial<Store>) => void;
@@ -183,6 +185,7 @@ const defaultPageSettings = {
   darkenApplyToScryfall: true,
   darkenApplyToMpc: false,
   darkenApplyToUploads: false,
+  darkenApplyToCardbacks: false,
   guideColor: "#39FF14",
   guideWidth: 1,
   cardSpacingMm: 0,
@@ -395,9 +398,13 @@ export const useSettingsStore = create<Store>()((set) => ({
     recordSettingChange("darkenApplyToMpc", state.darkenApplyToMpc);
     return { darkenApplyToMpc: value };
   }),
-  setDarkenApplyToUploads: (value) => set((state) => {
+  setDarkenApplyToUploads: (value: boolean) => set((state) => {
     recordSettingChange("darkenApplyToUploads", state.darkenApplyToUploads);
     return { darkenApplyToUploads: value };
+  }),
+  setDarkenApplyToCardbacks: (value: boolean) => set((state) => {
+    recordSettingChange("darkenApplyToCardbacks", state.darkenApplyToCardbacks);
+    return { darkenApplyToCardbacks: value };
   }),
   setGuideColor: (value) => set((state) => {
     recordSettingChange("guideColor", state.guideColor);
@@ -570,6 +577,7 @@ export const useSettingsStore = create<Store>()((set) => ({
       darkenApplyToScryfall: currentState.darkenApplyToScryfall,
       darkenApplyToMpc: currentState.darkenApplyToMpc,
       darkenApplyToUploads: currentState.darkenApplyToUploads,
+      darkenApplyToCardbacks: currentState.darkenApplyToCardbacks,
       guideColor: currentState.guideColor,
       guideWidth: currentState.guideWidth,
       cardSpacingMm: currentState.cardSpacingMm,

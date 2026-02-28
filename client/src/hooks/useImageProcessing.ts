@@ -1,13 +1,12 @@
 import { API_BASE } from "@/constants";
-import { db, type Image, type Cardback } from "../db"; // Import the Dexie database instance
+import { db, type Image, type Cardback } from "../db";
 import { ImageProcessor, Priority } from "../helpers/imageProcessor";
 import { useSettingsStore, useProjectStore } from "../store";
 import { useLoadingStore } from "../store/loading";
 import { markCardProcessed, markCardFailed } from "../helpers/importSession";
-import type { CardOption } from "../../../shared/types";
+import { ImageSource, type CardOption } from "../../../shared/types";
 import { useCallback, useRef, useState, useEffect } from "react";
 import { getEffectiveBleedMode, getEffectiveExistingBleedMm, getExpectedBleedWidth, getHasBuiltInBleed, type GlobalSettings } from "../helpers/imageSpecs";
-import { isCardbackId } from "../helpers/cardbackLibrary";
 import { toProxied } from "../helpers/imageHelper";
 import { darkenModeToInt } from "../components/CardCanvas/types";
 import { emergencyCleanup } from "../helpers/cacheUtils";
@@ -29,44 +28,58 @@ function getGlobalSettings(bleedWidth: number): GlobalSettings {
 
 /**
  * Gets the image or cardback record for a card.
- * Uses the imageId prefix to determine which table to query.
+ * First checks the ephemeral `db.images` cache where processed blobs are stored.
+ * If not found and it's a cardback, falls back to `db.cardbacks` to get the original data.
  */
-async function getImageOrCardback(imageId: string): Promise<Image | Cardback | undefined> {
-  if (isCardbackId(imageId)) {
-    return await db.cardbacks.get(imageId);
+async function getImageOrCardback(imageId: string, source?: ImageSource): Promise<Image | Cardback | undefined> {
+  const image = await db.images.get(imageId);
+  if (image && (image.originalBlob || image.displayBlob)) {
+    return image;
   }
-  return await db.images.get(imageId);
+  if (source === ImageSource.Cardback || imageId.startsWith('cardback_')) {
+    const cb = await db.cardbacks.get(imageId);
+    if (cb) {
+        // Return a hybrid if we had an image record but missing blobs
+        return image ? { ...cb, ...image } as typeof image : cb;
+    }
+  }
+  return image;
 }
 
 /**
- * Updates the image or cardback record for a card.
- * Uses the imageId prefix to determine which table to update.
- * Uses a get-then-put pattern to ensure the record exists and is updated correctly.
- * Dexie's update() silently returns 0 if the record doesn't exist, causing metadata loss.
+ * Updates the image record for a card.
+ * We ONLY write processed data to `db.images`, preserving `db.cardbacks` as a pristine library
+ * of unedited original images and metadata.
  */
-async function updateImageOrCardback(_card: CardOption, imageId: string, updates: Partial<Image | Cardback>): Promise<void> {
-  if (isCardbackId(imageId)) {
-    const existing = await db.cardbacks.get(imageId);
-    if (existing) {
-      await db.cardbacks.put({ ...existing, ...updates });
-    } else {
-      // Cardback should always exist - log warning but don't fail
-      console.warn(`updateImageOrCardback: cardback ${imageId} not found`);
-    }
+async function updateImageOrCardback(card: CardOption, imageId: string, updates: Partial<Image | Cardback>): Promise<void> {
+  const existing = await db.images.get(imageId);
+  if (existing) {
+    const merged = { ...existing, ...updates };
+    await db.images.put(merged);
   } else {
-    const existing = await db.images.get(imageId);
-    if (existing) {
-      const merged = { ...existing, ...updates };
-      await db.images.put(merged);
-    } else {
-      // Create new record with the updates - this handles the case where
-      // the image record was cleared but the card still references it
-      await db.images.put({
-        id: imageId,
-        refCount: 1,
-        ...updates,
-      } as Image);
+    // Create new record with the updates
+    let originalData: Partial<Cardback> = {};
+    if (card.source === ImageSource.Cardback || imageId.startsWith('cardback_')) {
+       const cb = await db.cardbacks.get(imageId);
+       if (cb) {
+           originalData = {
+               originalBlob: cb.originalBlob,
+               sourceUrl: cb.sourceUrl,
+               exportDpi: cb.exportDpi,
+               mpcSource: cb.mpcSource,
+               tags: cb.tags,
+               displayName: cb.displayName,
+               hasBuiltInBleed: cb.hasBuiltInBleed
+           };
+       }
     }
+    await db.images.add({
+      id: imageId,
+      refCount: 1,
+      source: card.source,
+      ...originalData,
+      ...updates, // This ensures updates (like displayBlob) override anything from originalData
+    } as Image);
   }
 }
 
@@ -133,7 +146,7 @@ export function useImageProcessing({
   ): Promise<string | undefined> {
     if (!card.imageId) return undefined;
 
-    const imageRecord = await getImageOrCardback(card.imageId);
+    const imageRecord = await getImageOrCardback(card.imageId, card.source);
     if (imageRecord?.originalBlob) {
       return URL.createObjectURL(imageRecord.originalBlob);
     }
@@ -154,50 +167,62 @@ export function useImageProcessing({
       return toProxied(imageRecord.sourceUrl);
     }
 
-    // No image record exists - try to regenerate from imageId
+    // No image record exists - try to regenerate from imageId/source
     // This handles the case after project switch when images cache was cleared
     const imageId = card.imageId;
 
     // Skip cardbacks - they're in a separate table and have their own logic
-    if (isCardbackId(imageId)) return undefined;
+    if (card.source === ImageSource.Cardback || card.imageId?.startsWith('cardback_')) return undefined;
 
-    // Check if it looks like a URL (Scryfall images use URLs as imageId)
-    if (imageId.startsWith('http://') || imageId.startsWith('https://')) {
-      // Create a new image record with this URL as source
+    // Regeneration logic based on explicit source
+    if (card.source === ImageSource.Scryfall) {
+      // Scryfall images use URLs as imageId
       await db.images.put({
         id: imageId,
         sourceUrl: imageId,
         refCount: 1,
+        source: ImageSource.Scryfall,
       });
       return toProxied(imageId);
     }
 
-    // Check if it's an MPC identifier (format: mpc-IDENTIFIER or just alphanumeric)
-    // MPC identifiers need to be converted to URLs via getMpcAutofillImageUrl
-    const { extractMpcIdentifierFromImageId, getMpcAutofillImageUrl } = await import('../helpers/mpcAutofillApi');
-    const mpcIdentifier = extractMpcIdentifierFromImageId(imageId);
-    if (mpcIdentifier) {
-      const mpcUrl = getMpcAutofillImageUrl(mpcIdentifier);
-      await db.images.put({
-        id: imageId,
-        sourceUrl: mpcUrl,
-        refCount: 1,
-        source: 'mpc',
-      });
-      return toProxied(mpcUrl);
+    if (card.source === ImageSource.MPC) {
+      const { extractMpcIdentifierFromImageId, getMpcAutofillImageUrl } = await import('../helpers/mpcAutofillApi');
+      const mpcIdentifier = extractMpcIdentifierFromImageId(imageId);
+      if (mpcIdentifier) {
+        const mpcUrl = getMpcAutofillImageUrl(mpcIdentifier);
+        await db.images.put({
+          id: imageId,
+          sourceUrl: mpcUrl,
+          refCount: 1,
+          source: ImageSource.MPC,
+        });
+        return toProxied(mpcUrl);
+      }
     }
 
-    // Check if it's a custom upload stored in persistent user_images table
-    const userImage = await db.user_images.get(imageId);
-    if (userImage?.data) {
-      // Recreate the images cache entry with the persistent blob
+    if (card.source === ImageSource.UploadLibrary || !card.source) {
+      const userImage = await db.user_images.get(imageId);
+      if (userImage?.data) {
+        await db.images.put({
+          id: imageId,
+          originalBlob: userImage.data,
+          refCount: 1,
+          source: ImageSource.UploadLibrary,
+        });
+        return URL.createObjectURL(userImage.data);
+      }
+    }
+
+    // Fallback: Check if it looks like a URL anyway (for robustness during development/testing)
+    if (imageId.startsWith('http://') || imageId.startsWith('https://')) {
       await db.images.put({
         id: imageId,
-        originalBlob: userImage.data,
+        sourceUrl: imageId,
         refCount: 1,
-        source: 'upload-library',
+        source: ImageSource.Scryfall,
       });
-      return URL.createObjectURL(userImage.data);
+      return toProxied(imageId);
     }
 
     // Can't determine source - truly unknown image
@@ -226,6 +251,15 @@ export function useImageProcessing({
     if (imageId === 'cardback_builtin_blank') {
       markCardProcessed(card.uuid, false);
       processedImageIds.current.add(imageId);
+      const existing = await db.cardbacks.get(imageId);
+      if (!existing) {
+        await db.cardbacks.put({
+          id: imageId,
+          sourceUrl: '',
+          hasBuiltInBleed: true,
+          source: ImageSource.Cardback,
+        });
+      }
       return true;
     }
 
@@ -236,7 +270,7 @@ export function useImageProcessing({
     // Session Cache Check (unless bypassed)
     // Fast path: skip if this image was already processed successfully THIS session
     if (!bypassSessionCache && processedImageIds.current.has(imageId)) {
-      const cachedImage = await getImageOrCardback(imageId);
+      const cachedImage = await getImageOrCardback(imageId, card.source);
       const settingsInvalidated = cachedImage?.generatedHasBuiltInBleed === undefined;
       if (!settingsInvalidated) {
         markCardProcessed(card.uuid, true);
@@ -262,7 +296,7 @@ export function useImageProcessing({
 
     const p = (async (): Promise<boolean> => {
       try {
-        const currentImage = await getImageOrCardback(imageId);
+        const currentImage = await getImageOrCardback(imageId, card.source);
 
         // Use override settings (for reprocessing) or current global settings
         const settings = settingsOverride || getGlobalSettings(bleedEdgeWidth);
@@ -274,6 +308,9 @@ export function useImageProcessing({
 
         // Smart Cache Check (DB-level)
         const hasBuiltInBleed = getHasBuiltInBleed(card);
+        if (card.source === ImageSource.Cardback) {
+          console.log(`[useImageProcessing] Cardback Check: id=${imageId}, expectedBleed=${expectedBleedWidth}, effectiveMode=${effectiveBleedMode}, hasBuiltIn=${hasBuiltInBleed}`);
+        }
 
         if (
           currentImage?.displayBlob &&
@@ -285,10 +322,13 @@ export function useImageProcessing({
             : currentImage.generatedHasBuiltInBleed === card.hasBuiltInBleed) &&
           currentImage.generatedBleedMode === effectiveBleedMode
         ) {
+          if (card.source === ImageSource.Cardback) console.log(`[useImageProcessing] Cardback CACHE HIT: Skipping. exportBleedWidth=${currentImage.exportBleedWidth}, generatedHasBuiltIn=${currentImage.generatedHasBuiltInBleed}, generatedBleedMode=${currentImage.generatedBleedMode}`);
           debugLog('[DEBUG processCardInternal] DB CACHE HIT - skipping processing');
           processedImageIds.current.add(imageId);
           markCardProcessed(card.uuid, true);
           return true;
+        } else if (card.source === ImageSource.Cardback) {
+          console.log(`[useImageProcessing] Cardback CACHE MISS: currentImage exists? ${!!currentImage}, hasDisplayBlob? ${!!currentImage?.displayBlob}, exportBleed=${currentImage?.exportBleedWidth} vs expected=${expectedBleedWidth}, dpi=${currentImage?.exportDpi} vs ${dpi}, genBuiltInBleed=${currentImage?.generatedHasBuiltInBleed} vs ${card.hasBuiltInBleed}, genBleedMode=${currentImage?.generatedBleedMode} vs ${effectiveBleedMode}`);
         }
 
         const src = await getOriginalSrcForCard(card);
@@ -322,8 +362,13 @@ export function useImageProcessing({
               baseDisplayBlob, baseExportBlob, imageCacheHit, darknessFactor,
             } = result;
 
+            // Never overwrite exportDpi for cardbacks as it tracks their original metadata DPI
+            const isCardback = card.source === ImageSource.Cardback;
+
             await updateImageOrCardback(card, imageId, {
-              displayBlob, displayDpi, displayBleedWidth, exportBlob, exportDpi, exportBleedWidth,
+              displayBlob, displayDpi, displayBleedWidth, exportBlob, 
+              ...(isCardback ? {} : { exportDpi }), 
+              exportBleedWidth,
               displayBlobDarkenAll, exportBlobDarkenAll, displayBlobContrastEdges, exportBlobContrastEdges,
               displayBlobContrastFull, exportBlobContrastFull, displayBlobDarkened, exportBlobDarkened,
               baseDisplayBlob, baseExportBlob, darknessFactor,
@@ -356,7 +401,7 @@ export function useImageProcessing({
                     displayDpi: result.displayDpi,
                     displayBleedWidth: result.displayBleedWidth,
                     exportBlob: result.exportBlob,
-                    exportDpi: result.exportDpi,
+                    ...(isCardback ? {} : { exportDpi: result.exportDpi }),
                     exportBleedWidth: result.exportBleedWidth,
                     displayBlobDarkenAll: result.displayBlobDarkenAll,
                     exportBlobDarkenAll: result.exportBlobDarkenAll,

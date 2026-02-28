@@ -133,7 +133,8 @@ export function PageViewContextMenu({ contextMenu, setContextMenu, cards, allCar
                         onClick={() => {
                             const card = cards?.find(c => c.uuid === contextMenu.cardUuid);
                             if (card) {
-                                openArtworkModal({ card, index: null, allCards: cards, initialTab: 'settings' });
+                                const index = cards.findIndex(c => c.uuid === card.uuid);
+                                openArtworkModal({ card, index: index >= 0 ? index : null, allCards: cards, initialTab: 'settings', initialFace: flippedCards.has(card.uuid) ? 'back' : 'front' });
                             }
                             setContextMenu({ ...contextMenu, visible: false });
                         }}
@@ -191,7 +192,8 @@ export function PageViewContextMenu({ contextMenu, setContextMenu, cards, allCar
                         onClick={() => {
                             const card = cards?.find(c => c.uuid === contextMenu.cardUuid);
                             if (card) {
-                                openArtworkModal({ card, index: null, allCards: cards, initialTab: 'settings' });
+                                const index = cards.findIndex(c => c.uuid === card.uuid);
+                                openArtworkModal({ card, index: index >= 0 ? index : null, allCards: cards, initialTab: 'settings', initialFace: flippedCards.has(card.uuid) ? 'back' : 'front' });
                             }
                             setContextMenu({ ...contextMenu, visible: false });
                         }}

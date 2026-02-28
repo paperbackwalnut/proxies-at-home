@@ -1,8 +1,6 @@
 import { db, type Image } from "@/db";
-import { ImageSource } from "../db";
-import type { CardOption, CardOverrides } from "../../../shared/types";
+import { ImageSource, type CardOption, type CardOverrides } from "../../../shared/types";
 import { parseImageIdFromUrl } from "./imageHelper";
-import { isCardbackId } from "./cardbackLibrary";
 import { generateUUID } from "./uuid";
 import { extractMpcIdentifierFromImageId, getMpcAutofillImageUrl } from "./mpcAutofillApi";
 import { detectBleed } from "./cardDimensions";
@@ -87,7 +85,7 @@ export async function addUploadLibraryImage(
 export async function addRemoteImage(
   imageUrls: string[],
   count: number = 1,
-  source: import("../db").ImageSource,
+  source: ImageSource,
   prints?: Array<{ imageUrl: string; set: string; number: string; rarity?: string; faceName?: string }>
 ): Promise<string | undefined> {
   if (!imageUrls || imageUrls.length === 0) return undefined;
@@ -132,7 +130,7 @@ export async function addRemoteImages(
     imageUrls: string[];
     count?: number;
     prints?: Array<{ imageUrl: string; set: string; number: string; rarity?: string; faceName?: string }>;
-    source?: import("../db").ImageSource;
+    source?: ImageSource;
   }>
 ): Promise<Map<string, string>> {
   const result = new Map<string, string>();
@@ -144,7 +142,7 @@ export async function addRemoteImages(
     urls: string[];
     count: number;
     prints?: Image['prints'];
-    source?: import("../db").ImageSource;
+    source?: ImageSource;
   }>();
 
   for (const img of images) {
@@ -220,8 +218,11 @@ export async function addRemoteImages(
 
 // This is a private helper and should not be exported.
 // It assumes it's already running within an active transaction.
-async function _removeImageRef_transactional(imageId: string): Promise<void> {
+async function _removeImageRef_transactional(imageId: string, source?: ImageSource): Promise<void> {
   if (!imageId) return;
+
+  // Cardbacks don't need ref counting
+  if (source === ImageSource.Cardback) return;
 
   const image = await db.images.get(imageId);
   if (image) {
@@ -230,7 +231,6 @@ async function _removeImageRef_transactional(imageId: string): Promise<void> {
       await db.images.update(imageId, { refCount: image.refCount - 1 });
     } else {
       // Delete the image if it's the last reference
-      // Note: cardbacks are in db.cardbacks, not db.images
       await db.images.delete(imageId);
     }
   }
@@ -240,13 +240,14 @@ async function _removeImageRef_transactional(imageId: string): Promise<void> {
  * Decrements the reference count for an image. If the count reaches 0,
  * the image is deleted from the database.
  * @param imageId The ID of the image to dereference.
+ * @param source The source of the image to determine if ref counting is needed.
  */
-export async function removeImageRef(imageId: string): Promise<void> {
+export async function removeImageRef(imageId: string, source?: ImageSource): Promise<void> {
   if (!imageId) return;
 
   // This function now safely wraps the core logic in a transaction.
   await db.transaction("rw", db.images, () => {
-    return _removeImageRef_transactional(imageId);
+    return _removeImageRef_transactional(imageId, source);
   });
 }
 
@@ -342,7 +343,7 @@ export async function deleteCard(uuid: string): Promise<void> {
         if (backCard) {
           await db.cards.delete(card.linkedBackId);
           if (backCard.imageId) {
-            await _removeImageRef_transactional(backCard.imageId);
+            await _removeImageRef_transactional(backCard.imageId, backCard.source);
           }
         }
       }
@@ -355,7 +356,7 @@ export async function deleteCard(uuid: string): Promise<void> {
       await db.cards.delete(uuid);
       if (card.imageId) {
         // Safely call the non-transactional helper from within the transaction.
-        await _removeImageRef_transactional(card.imageId);
+        await _removeImageRef_transactional(card.imageId, card.source);
       }
     }
   });
@@ -377,6 +378,7 @@ export async function createLinkedBackCard(
   options?: {
     hasBuiltInBleed?: boolean;
     usesDefaultCardback?: boolean;
+    source?: ImageSource;
     overrides?: Partial<CardOption['overrides']>;
   }
 ): Promise<string> {
@@ -390,6 +392,7 @@ export async function createLinkedBackCard(
 
     // Create back card with link to front
     // Back cards NEVER need Scryfall enrichment
+    const isCardback = options?.usesDefaultCardback || (backImageId?.startsWith('cardback_'));
     const backCard: CardOption = {
       uuid: backUuid,
       name: backName,
@@ -402,6 +405,7 @@ export async function createLinkedBackCard(
       usesDefaultCardback: options?.usesDefaultCardback,
       overrides: options?.overrides,
       projectId: frontCard.projectId,
+      source: options?.source ?? (isCardback ? ImageSource.Cardback : frontCard.source),
     };
 
     await db.cards.add(backCard);
@@ -411,7 +415,8 @@ export async function createLinkedBackCard(
 
     // Only increment ref count for custom back images (not cardbacks)
     // Cardbacks don't need ref counting - they're only deleted explicitly
-    if (backImageId && !options?.usesDefaultCardback) {
+    const source = options?.source ?? (options?.usesDefaultCardback ? ImageSource.Cardback : undefined);
+    if (backImageId && source !== ImageSource.Cardback) {
       const image = await db.images.get(backImageId);
       if (image) {
         await db.images.update(backImageId, { refCount: image.refCount + 1 });
@@ -435,6 +440,7 @@ export async function createLinkedBackCardsBulk(
     options?: {
       hasBuiltInBleed?: boolean;
       usesDefaultCardback?: boolean;
+      source?: ImageSource;
       overrides?: CardOverrides;
     };
   }>
@@ -458,6 +464,7 @@ export async function createLinkedBackCardsBulk(
       options?: {
         hasBuiltInBleed?: boolean;
         usesDefaultCardback?: boolean;
+        source?: ImageSource;
         overrides?: CardOverrides;
       };
     }> = [];
@@ -487,10 +494,10 @@ export async function createLinkedBackCardsBulk(
       newUuids.push(backUuid);
 
       // Prepare back card - back cards NEVER need Scryfall enrichment
+      const isCardback = item.options?.usesDefaultCardback || (item.backImageId?.startsWith('cardback_'));
       backCardsToAdd.push({
         uuid: backUuid,
         name: item.backName,
-        // Shared Slot Key: Back card gets exact same order as front
         order: front.order,
         isUserUpload: front.isUserUpload,
         imageId: item.backImageId,
@@ -500,6 +507,7 @@ export async function createLinkedBackCardsBulk(
         usesDefaultCardback: item.options?.usesDefaultCardback,
         overrides: item.options?.overrides,
         projectId: front.projectId,
+        source: item.options?.source ?? (isCardback ? ImageSource.Cardback : front.source),
       });
 
       // Prepare front update
@@ -509,7 +517,7 @@ export async function createLinkedBackCardsBulk(
       });
 
       // Only tally ref counts for non-cardback images (cardbacks don't need ref counting)
-      if (item.backImageId && !isCardbackId(item.backImageId)) {
+      if (item.backImageId && !isCardback) {
         imageRefIncrements.set(item.backImageId, (imageRefIncrements.get(item.backImageId) || 0) + 1);
       }
     }
@@ -561,10 +569,14 @@ export async function createLinkedBackCardsBulk(
         const update = existingBackIdsToUpdate[i];
         const existingBack = existingBacks[i];
         // Only track non-cardback images
-        if (existingBack?.imageId && existingBack.imageId !== update.newImageId && !isCardbackId(existingBack.imageId)) {
+        const isCardbackOld = existingBack?.source === ImageSource.Cardback;
+        const sourceNew = update.options?.source ?? (update.options?.usesDefaultCardback ? ImageSource.Cardback : undefined);
+        const isCardbackNew = sourceNew === ImageSource.Cardback;
+
+        if (existingBack?.imageId && existingBack.imageId !== update.newImageId && !isCardbackOld) {
           oldImageIds.add(existingBack.imageId);
         }
-        if (update.newImageId && !isCardbackId(update.newImageId)) {
+        if (update.newImageId && !isCardbackNew) {
           newImageIds.add(update.newImageId);
         }
       }
@@ -586,10 +598,14 @@ export async function createLinkedBackCardsBulk(
       for (let i = 0; i < existingBackIdsToUpdate.length; i++) {
         const update = existingBackIdsToUpdate[i];
         const existingBack = existingBacks[i];
-        if (existingBack?.imageId && existingBack.imageId !== update.newImageId && !isCardbackId(existingBack.imageId)) {
+        const isCardbackOld = existingBack?.source === ImageSource.Cardback;
+        const sourceNew = update.options?.source ?? (update.options?.usesDefaultCardback ? ImageSource.Cardback : undefined);
+        const isCardbackNew = sourceNew === ImageSource.Cardback;
+
+        if (existingBack?.imageId && existingBack.imageId !== update.newImageId && !isCardbackOld) {
           imageRefDecrements.set(existingBack.imageId, (imageRefDecrements.get(existingBack.imageId) || 0) + 1);
         }
-        if (update.newImageId && !isCardbackId(update.newImageId)) {
+        if (update.newImageId && !isCardbackNew) {
           imageRefIncrements.set(update.newImageId, (imageRefIncrements.get(update.newImageId) || 0) + 1);
         }
       }
@@ -628,6 +644,7 @@ export async function createLinkedBackCardsBulk(
           hasBuiltInBleed: update.options?.hasBuiltInBleed,
           usesDefaultCardback: update.options?.usesDefaultCardback,
           overrides: update.options?.overrides,
+          source: update.options?.usesDefaultCardback ? ImageSource.Cardback : ImageSource.Scryfall, // Or MPC?
         },
       }));
 
@@ -700,7 +717,7 @@ export async function duplicateCard(uuid: string): Promise<void> {
 
         // Increment back image ref count if it has a non-cardback image
         // Cardbacks don't need ref counting
-        if (backCard.imageId && !isCardbackId(backCard.imageId)) {
+        if (backCard.imageId && backCard.source !== ImageSource.Cardback) {
           const backImage = await db.images.get(backCard.imageId);
           if (backImage) {
             await db.images.update(backCard.imageId, {
@@ -755,7 +772,7 @@ export async function changeCardArtwork(
   cardMetadata?: Partial<Pick<CardOption, 'set' | 'number' | 'colors' | 'cmc' | 'type_line' | 'rarity' | 'mana_cost' | 'lang' | 'token_parts' | 'needs_token' | 'isToken'>>,
   hasBuiltInBleed?: boolean,
   overrides?: Partial<CardOption['overrides']>,
-  newImageSource?: import("../db").ImageSource
+  newImageSource?: ImageSource
 ): Promise<void> {
   await db.transaction("rw", db.cards, db.images, db.cardbacks, db.user_images, async () => {
     if (oldImageId === newImageId && !newName && !newImageUrls && !cardMetadata) {
@@ -787,6 +804,7 @@ export async function changeCardArtwork(
       if (userImg) newImageIsUploadLibrary = true;
     }
 
+    const isCardback = newImageId?.startsWith('cardback_') || newImageSource === ImageSource.Cardback;
     const changes: Partial<CardOption> = {
       imageId: newImageId,
       isUserUpload: newImageIsUploadLibrary,
@@ -794,6 +812,7 @@ export async function changeCardArtwork(
       needsEnrichment: false,
       enrichmentRetryCount: undefined,
       enrichmentNextRetryAt: undefined,
+      source: newImageSource || (isCardback ? ImageSource.Cardback : (newImageIsUploadLibrary ? ImageSource.UploadLibrary : (extractMpcIdentifierFromImageId(newImageId) ? ImageSource.MPC : ImageSource.Scryfall))),
     };
     if (newName) {
       changes.name = newName;
@@ -816,7 +835,7 @@ export async function changeCardArtwork(
 
     // 3. Handle new image ref counting
     // Skip ref counting for cardbacks - they're in db.cardbacks and don't need ref counting
-    const newIsCardback = isCardbackId(newImageId);
+    const newIsCardback = newImageSource === ImageSource.Cardback || (newImageId && newImageId.startsWith('cardback_')); // Fallback for manual uploads/inferred
     if (!newIsCardback) {
       const newImage = await db.images.get(newImageId);
       if (newImage) {
@@ -867,13 +886,36 @@ export async function changeCardArtwork(
           });
         }
       }
+    } else {
+        // It's a cardback. Ensure it exists in db.images with correct metadata
+        const newImage = await db.images.get(newImageId);
+        if (!newImage) {
+            const cb = await db.cardbacks.get(newImageId);
+            if (cb) {
+                await db.images.add({
+                    ...cb, // Inherit everything from the original library record (displayBlob, bleed widths, etc)
+                    id: newImageId,
+                    refCount: 1, // Cardbacks don't strictly need this but good for consistency
+                    source: ImageSource.Cardback,
+                });
+            }
+        }
     }
 
     // 4. Decrement the old images' refCounts, only if the image is actually changing
     // Skip cardbacks - they're in db.cardbacks and don't need ref counting
     if (oldImageId !== newImageId) {
+      // Build a map of which image IDs were cardbacks
+      const imageIdToSource = new Map<string, ImageSource | undefined>();
+      for (const card of cardsToUpdate) {
+        if (card.imageId) imageIdToSource.set(card.imageId, card.source);
+      }
+
       // Filter out cardback IDs and collect image IDs to check
-      const imageIdsToCheck = Array.from(oldImageIdCounts.keys()).filter(id => !isCardbackId(id));
+      const imageIdsToCheck = Array.from(oldImageIdCounts.keys()).filter(id => {
+        const source = imageIdToSource.get(id);
+        return source !== ImageSource.Cardback && !id.startsWith('cardback_');
+      });
 
       if (imageIdsToCheck.length > 0) {
         // Bulk fetch all old images at once instead of sequential awaits

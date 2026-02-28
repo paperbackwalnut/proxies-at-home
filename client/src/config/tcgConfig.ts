@@ -1,5 +1,8 @@
 /**
- * Per-TCG UI configuration.
+ * Per-TCG UI configuration — Phase 1 of TCG Module Architecture.
+ *
+ * Each TCG is a self-contained config bundle. Consumer code reads data from the
+ * config without knowing which TCG is active. See tcg_module_architecture.md.
  *
  * To add a new TCG:
  *  1. Add an entry here.
@@ -11,14 +14,21 @@
 
 export type TcgId = string;
 
+export interface ArtSource {
+    id: string;
+    label: string;
+    color: string;
+}
+
 export interface TcgConfig {
     id: TcgId;
     label: string;
     activeButtonClass: string;
-    searchSourceLabel: string;
-    searchSourceColor: string;
-    hasMpcSource: boolean;
     decklistPlaceholder: string;
+    artSources: ArtSource[];
+    emptyState: { message: string; link?: { url: string; label: string } };
+    noResultsLabel: string;
+    syntaxHint?: string;
     filters: {
         manaValue: boolean;
         colors: boolean;
@@ -29,16 +39,35 @@ export interface TcgConfig {
     sortOptions: Array<{ value: string; label: string }>;
 }
 
+export function getSearchSourceLabel(cfg: TcgConfig): string {
+    return cfg.artSources[0]?.label ?? cfg.label;
+}
+
+export function getSearchSourceColor(cfg: TcgConfig): string {
+    return cfg.artSources[0]?.color ?? '#333';
+}
+
+export function hasMpcSource(cfg: TcgConfig): boolean {
+    return cfg.artSources.some(s => s.id === 'mpc');
+}
+
 export const TCG_CONFIGS: Record<string, TcgConfig> = {
     mtg: {
         id: 'mtg',
         label: 'MTG',
         activeButtonClass: 'bg-blue-600 text-white',
-        searchSourceLabel: 'Scryfall',
-        searchSourceColor: '#431e3f',
-        hasMpcSource: true,
+        artSources: [
+            { id: 'scryfall', label: 'Scryfall', color: '#431e3f' },
+            { id: 'mpc', label: 'MPC Autofill', color: '#4c9be8' },
+        ],
+        emptyState: {
+            message: 'Search for a card to preview artwork.',
+            link: { url: 'https://scryfall.com/docs/syntax', label: 'syntax guide' },
+        },
+        noResultsLabel: 'No Scryfall results found.',
         decklistPlaceholder:
-            `1x Sol Ring\n2x Counterspell\nFor specific art include set / CN\neg. Strionic Resonator (lcc)\nor Repurposing Bay (dft) 380`,
+            `1x Sol Ring\n2x Swamp\nFor a specific art use set code and collector number:\nSol Ring (C19) 221`,
+        syntaxHint: 'Supports Scryfall syntax',
         filters: {
             manaValue: true,
             colors: true,
@@ -59,9 +88,14 @@ export const TCG_CONFIGS: Record<string, TcgConfig> = {
         id: 'pokemon',
         label: 'Pokémon',
         activeButtonClass: 'bg-yellow-500 text-white',
-        searchSourceLabel: 'TCGdex',
-        searchSourceColor: '#e6343a',
-        hasMpcSource: false,
+        artSources: [
+            { id: 'tcgdex', label: 'TCGdex', color: '#e6343a' },
+        ],
+        emptyState: {
+            message: 'Search for a Pokémon card to preview.\nResults from TCGdex',
+            link: { url: 'https://tcgdex.dev', label: 'TCGdex' },
+        },
+        noResultsLabel: 'No TCGdex results found.',
         decklistPlaceholder:
             `1x Gengar\n2x Pikachu\nFor a specific art use number:\nMewtwo 059/159`,
         filters: {

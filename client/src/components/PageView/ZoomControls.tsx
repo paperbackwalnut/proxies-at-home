@@ -35,6 +35,8 @@ export function ZoomControls({
     const zoom = isControlled ? controlledZoom : globalZoom;
     const setZoom = isControlled ? onZoomChange : globalSetZoom;
 
+    const containerRef = useRef<HTMLDivElement>(null);
+    const isDraggingRef = useRef(false);
     const lastTapRef = useRef(0);
     const isDoubleTapRef = useRef(false);
 
@@ -54,12 +56,11 @@ export function ZoomControls({
     const handleZoomIn = () => setZoom(Math.min(maxZoom, zoom + 0.1));
     const handleResetZoom = () => setZoom(1.0);
 
-    const handleSliderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (isDoubleTapRef.current) {
-            isDoubleTapRef.current = false;
-            return;
-        }
-        const val = parseInt(e.target.value, 10);
+    const updateZoomFromX = (clientX: number) => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const val = Math.max(0, Math.min(100, (x / rect.width) * 100));
 
         // Define snap points
         const snapZooms: number[] = [];
@@ -78,6 +79,27 @@ export function ZoomControls({
         }
 
         setZoom(newZoom);
+    };
+
+    const handlePointerDown = (e: React.PointerEvent) => {
+        e.stopPropagation();
+        if (e.button !== 0) return; // Only left click
+
+        isDraggingRef.current = true;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        updateZoomFromX(e.clientX);
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDraggingRef.current) return;
+        e.stopPropagation();
+        updateZoomFromX(e.clientX);
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        if (!isDraggingRef.current) return;
+        isDraggingRef.current = false;
+        e.currentTarget.releasePointerCapture(e.pointerId);
     };
 
     const handleTouchStart = () => {
@@ -102,18 +124,17 @@ export function ZoomControls({
     const thumbPosition = toSliderValue(zoom);
 
     // Label Visual Pill Style
-    // Located exactly at thumb center (calc logic ensures alignment)
+    // With custom pointer tracking, 0-100% maps perfectly to the container width
     const labelStyle: React.CSSProperties = {
-        left: `calc(${thumbPosition}% - ${thumbPosition * 0.16}px + 8px)`
+        left: `${thumbPosition}%`
     };
 
     // The Label becomes the visual thumb: Blue Pill
     // Vertically centered (top-1/2 -translate-y-1/2) over the track.
     const labelClasses = "absolute pointer-events-none top-1/2 -translate-y-1/2 -translate-x-1/2 z-20 flex items-center justify-center bg-blue-600 text-white border border-blue-700 rounded-full shadow-sm text-base font-bold px-3 py-1";
 
-    // Hide the native thumb visually so the label acts as the thumb
-    // We use utility classes to target the thumb pseudo-elements
-    const sliderClasses = "zoom-slider w-full h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer dark:bg-gray-600 relative z-10 touch-none [&::-webkit-slider-thumb]:opacity-0 [&::-moz-range-thumb]:opacity-0 [&::-webkit-slider-thumb]:w-10 [&::-webkit-slider-thumb]:h-6";
+    // Standard slider classes but with pointer-events-none as we handle interaction on the container
+    const sliderClasses = "zoom-slider w-full h-full bg-transparent appearance-none pointer-events-none relative z-10 touch-none [&::-webkit-slider-thumb]:opacity-0 [&::-moz-range-thumb]:opacity-0 [&::-webkit-slider-thumb]:w-20 [&::-webkit-slider-thumb]:h-12 [&::-moz-range-thumb]:w-20 [&::-moz-range-thumb]:h-12";
 
     if (compact) {
         return (
@@ -122,11 +143,28 @@ export function ZoomControls({
                     size="xs"
                     color="blue"
                     onClick={handleZoomOut}
-                    className="shrink-0 aspect-square p-0 flex items-center justify-center"
+                    className="shrink-0 aspect-square p-0 flex items-center justify-center relative z-30"
                 >
                     <ZoomOut className="size-4" />
                 </Button>
-                <div className="relative flex-1 h-8 flex items-center min-w-[100px] mx-4">
+                <div
+                    ref={containerRef}
+                    className="relative flex-1 h-8 flex items-center min-w-[100px] mx-4 cursor-pointer select-none touch-none"
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        handleResetZoom();
+                    }}
+                    onTouchStart={(e) => {
+                        e.stopPropagation();
+                        handleTouchStart();
+                    }}
+                >
+                    {/* The Visual Track */}
+                    <div className="absolute w-full h-1.5 bg-gray-300 dark:bg-gray-600 rounded-lg pointer-events-none" />
+
                     {/* The Visual Thumb (Label) */}
                     <div
                         className={labelClasses}
@@ -135,15 +173,15 @@ export function ZoomControls({
                         {zoom.toFixed(1)}x
                     </div>
 
+                    {/* Hidden input for A11y & synchronization */}
                     <input
                         type="range"
                         min="0"
                         max="100"
                         step="1"
                         value={thumbPosition}
-                        onDoubleClick={handleResetZoom}
-                        onTouchStart={handleTouchStart}
-                        onChange={handleSliderChange}
+                        readOnly
+                        tabIndex={-1}
                         className={sliderClasses}
                     />
                 </div>
@@ -151,7 +189,7 @@ export function ZoomControls({
                     size="xs"
                     color="blue"
                     onClick={handleZoomIn}
-                    className="shrink-0 aspect-square p-0 flex items-center justify-center"
+                    className="shrink-0 aspect-square p-0 flex items-center justify-center relative z-30"
                 >
                     <ZoomIn className="size-4" />
                 </Button>
@@ -165,13 +203,30 @@ export function ZoomControls({
                 size="sm"
                 color="blue"
                 onClick={handleZoomOut}
-                className="shrink-0 aspect-square p-0 flex items-center justify-center"
+                className="shrink-0 aspect-square p-0 flex items-center justify-center relative z-30"
             >
                 <ZoomOut className="size-5" />
             </Button>
-            <div className="relative flex-1 h-10 flex items-center min-w-[120px] mx-4">
+            <div
+                ref={containerRef}
+                className="relative flex-1 h-10 flex items-center min-w-[120px] mx-4 cursor-pointer select-none touch-none"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    handleResetZoom();
+                }}
+                onTouchStart={(e) => {
+                    e.stopPropagation();
+                    handleTouchStart();
+                }}
+            >
+                {/* Visual Track */}
+                <div className="absolute w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg pointer-events-none" />
+
                 {/* Center Tick Mark (1x) */}
-                <div className="absolute left-1/2 -translate-x-1/2 w-1 h-10 bg-gray-400 dark:bg-gray-500 rounded pointer-events-none" />
+                <div className="absolute left-1/2 -translate-x-1/2 w-1 h-10 bg-gray-400 dark:bg-gray-500 rounded pointer-events-none z-0" />
 
                 {/* The Visual Thumb (Label) */}
                 <div
@@ -187,9 +242,8 @@ export function ZoomControls({
                     max="100"
                     step="1"
                     value={thumbPosition}
-                    onDoubleClick={handleResetZoom}
-                    onTouchStart={handleTouchStart}
-                    onChange={handleSliderChange}
+                    readOnly
+                    tabIndex={-1}
                     className={sliderClasses}
                 />
             </div>
@@ -197,7 +251,7 @@ export function ZoomControls({
                 size="sm"
                 color="blue"
                 onClick={handleZoomIn}
-                className="shrink-0 aspect-square p-0 flex items-center justify-center"
+                className="shrink-0 aspect-square p-0 flex items-center justify-center relative z-30"
             >
                 <ZoomIn className="size-5" />
             </Button>

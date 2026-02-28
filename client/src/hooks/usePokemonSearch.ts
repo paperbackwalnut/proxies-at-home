@@ -103,7 +103,7 @@ export function usePokemonSearch(
         abortControllerRef.current.abort();
       }
     };
-  }, [query, autoSearch, cachedResult, cacheKey]);
+  }, [query, autoSearch, cachedResult, cacheKey, lang]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -133,7 +133,7 @@ export function usePokemonPrints(name: string, enabled: boolean) {
           .map((c) => ({ imageUrl: c.imageUrls[0], set: c.set || '', number: c.number || '', lang }));
         setPrints(mapped);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setIsLoading(false));
 
     return () => controller.abort();

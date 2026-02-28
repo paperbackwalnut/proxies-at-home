@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ImageSource } from '../../../shared/types';
 import { streamCards } from './streamCards';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { undoableAddCards } from './undoableActions';
@@ -37,11 +38,7 @@ vi.mock('@/db', () => ({
             toArray: vi.fn().mockResolvedValue([]), // Default to empty cardbacks
         },
     },
-    ImageSource: {
-        Scryfall: "scryfall",
-        MPC: "mpc",
-        UploadLibrary: "upload-library"
-    }
+    ImageSource,
 }));
 
 // Mock Settings

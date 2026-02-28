@@ -101,10 +101,12 @@ describe('CardEditorModal', () => {
             }
             return mockStore;
         });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
     });
 
     afterEach(() => {
         vi.clearAllMocks();
+        vi.useRealTimers();
     });
 
     const defaultProps = {
@@ -267,21 +269,56 @@ describe('CardEditorModal', () => {
     });
 
     describe('interactions', () => {
-        it('should call onClose when cancel button is clicked', () => {
+        it('should call onClose when close button is clicked', () => {
             render(<CardEditorModal {...defaultProps} />);
-            const cancelButton = screen.getByText('Cancel');
-            fireEvent.click(cancelButton);
+            const closeButton = screen.getByText('Close');
+            fireEvent.click(closeButton);
             expect(mockOnClose).toHaveBeenCalled();
         });
 
-        it('should call onApply when apply button is clicked', async () => {
-            render(<CardEditorModal {...defaultProps} />);
-            // "Apply" button (the middle one)
-            const applyButton = screen.getByText('Apply');
-            await act(async () => {
-                fireEvent.click(applyButton);
+        it('should auto-save changes after a delay', async () => {
+            // Mock one of the sections to capture props and trigger update
+            vi.mock('./sections', async (importOriginal) => {
+                const mod = await importOriginal<typeof import('./sections')>();
+                return {
+                    ...mod,
+                    BasicAdjustmentsSection: ({ updateParam }: { updateParam: (key: string, value: unknown) => void }) => {
+                        return (
+                            <button onClick={() => updateParam('brightness', 1.5)}>
+                                Update Brightness
+                            </button>
+                        );
+                    }
+                };
             });
-            expect(mockOnApply).toHaveBeenCalledWith('test-front-uuid', expect.any(Object));
+
+            vi.mocked(useUserPreferencesStore).mockImplementation(((selector: unknown) => {
+                const state = {
+                    preferences: { cardEditorSectionOrder: ['basic'] },
+                    setCardEditorSectionCollapsed: vi.fn(),
+                };
+                return typeof selector === 'function' ? selector(state) : state;
+            }) as typeof useUserPreferencesStore);
+
+            render(<CardEditorModal {...defaultProps} />);
+
+            const basicHeader = screen.getByText('Image Adjustments');
+            fireEvent.click(basicHeader);
+
+            const updateBtn = await screen.findByText('Update Brightness');
+            await act(async () => {
+                fireEvent.click(updateBtn);
+            });
+
+            // Should NOT have called apply immediately
+            expect(mockOnApply).not.toHaveBeenCalled();
+
+            // Advance timers
+            act(() => {
+                vi.advanceTimersByTime(1000);
+            });
+
+            expect(mockOnApply).toHaveBeenCalled();
         });
 
         it('should call onApplyToAll when apply to all button is clicked', async () => {
@@ -295,21 +332,22 @@ describe('CardEditorModal', () => {
             expect(mockOnApplyToAll).toHaveBeenCalledWith(expect.any(Object));
         });
 
-        it('should call onApplyToSelected when applying in multi-select mode', async () => {
+        it('should call onApplyToSelected when auto-saving in multi-select mode', async () => {
             const mockOnApplyToSelected = vi.fn();
+            const dirtyCard = createMockCard({ overrides: { brightness: 1.5 } });
             render(
                 <CardEditorModal
                     {...defaultProps}
+                    card={dirtyCard}
                     selectedCardUuids={['1', '2']}
                     selectedCount={2}
                     onApplyToSelected={mockOnApplyToSelected}
                 />
             );
 
-            // Text should be "Apply to 2"
-            const applyButton = screen.getByText('Apply to 2');
-            await act(async () => {
-                fireEvent.click(applyButton);
+            // Auto-save triggers after 300ms, wait for it
+            act(() => {
+                vi.advanceTimersByTime(1000);
             });
 
             expect(mockOnApplyToSelected).toHaveBeenCalledWith(['1', '2'], expect.any(Object));
@@ -325,6 +363,11 @@ describe('CardEditorModal', () => {
             const resetButton = screen.getByTitle('Reset to global defaults');
             await act(async () => {
                 fireEvent.click(resetButton);
+            });
+
+            // Advance timers for auto-save
+            act(() => {
+                vi.advanceTimersByTime(300);
             });
 
             // Should call with empty overrides (meaning use defaults)
@@ -391,13 +434,12 @@ describe('CardEditorModal', () => {
                 });
 
                 await act(async () => {
-                    fireEvent.mouseMove(container, { clientX: 150, clientY: 150, buttons: 1 });
+                    fireEvent.mouseMove(container, { clientX: 200, clientY: 200, buttons: 1 });
                 });
 
-                // transform should have changed
-                // transform should have changed
+                // transform should have changed (200 - 100 = 100 > SNAP_THRESHOLD 35)
                 await waitFor(() => {
-                    expect(previewWrapper.style.transform).toContain('50px');
+                    expect(previewWrapper.style.transform).toContain('100px');
                 });
 
                 fireEvent.mouseUp(container);
@@ -529,9 +571,9 @@ describe('CardEditorModal', () => {
                 fireEvent.click(updateBtn);
             });
 
-            const applyButton = screen.getByText('Apply');
-            await act(async () => {
-                fireEvent.click(applyButton);
+            // Advance timers for auto-save
+            act(() => {
+                vi.advanceTimersByTime(1000); // 300ms is the threshold, use 1000 to be safe
             });
 
             expect(mockOnApply).toHaveBeenCalledWith(
@@ -542,8 +584,8 @@ describe('CardEditorModal', () => {
             unmount();
         });
 
-        it('should apply changes to BACK card when showing back', async () => {
-            const backCard = createMockCard({ uuid: 'test-back-uuid', overrides: {} });
+        it('should auto-save changes to BACK card when showing back', async () => {
+            const backCard = createMockCard({ uuid: 'test-back-uuid', overrides: { brightness: 1.5 } }); // Dirty start
             const backImage = createMockImage();
 
             render(
@@ -555,36 +597,17 @@ describe('CardEditorModal', () => {
                 />
             );
 
-            // Apply something
-            const applyButton = screen.getByText('Apply');
+            // Change something
+            const resetButton = screen.getByTitle('Reset to global defaults');
             await act(async () => {
-                fireEvent.click(applyButton);
+                fireEvent.click(resetButton);
+            });
+
+            act(() => {
+                vi.advanceTimersByTime(1000);
             });
 
             expect(mockOnApply).toHaveBeenCalledWith('test-back-uuid', expect.any(Object));
-        });
-
-        it('should include darken overrides when darkenUseGlobalSettings is false', async () => {
-            const customCard = createMockCard({
-                overrides: {
-                    darkenUseGlobalSettings: false,
-                    darkenMode: 'darken-all' as typeof DarkenMode[keyof typeof DarkenMode],
-                    darkenAmount: 0.8
-                }
-            });
-
-            render(<CardEditorModal {...defaultProps} card={customCard} />);
-
-            const applyButton = screen.getByText('Apply');
-            await act(async () => {
-                fireEvent.click(applyButton);
-            });
-
-            expect(mockOnApply).toHaveBeenCalledWith('test-front-uuid', expect.objectContaining({
-                darkenUseGlobalSettings: false,
-                darkenMode: DarkenMode.DarkenAll,
-                darkenAmount: 0.8
-            }));
         });
     });
     describe('paramsToOverrides', () => {

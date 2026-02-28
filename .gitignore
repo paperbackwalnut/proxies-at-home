@@ -8,6 +8,23 @@ client/test-results/
 client/tests/e2e/pdf-export.spec.ts-snapshots/
 node_modules
 
+# Merge conflict artifacts
+.base.ts
+.base.tsx
+.ours.ts
+.ours.tsx
+.theirs.ts
+.theirs.tsx
+
+# Test output artifacts
+test_full_log.txt
+test_output.log
+test_output.txt
+test_results.json
+
+# Misc
+tatus
+
 # Electron
 dist-app/
 electron/dist/

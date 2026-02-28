@@ -11,12 +11,15 @@ import {
   type PokemonFilterProps,
 } from "./PokemonFilterBar";
 import { UploadLibraryFilterBar, type UploadLibraryFilterProps } from "./UploadLibraryFilterBar";
-export type { MpcFilterProps, ScryfallFilterProps, PokemonFilterProps, UploadLibraryFilterProps };
+import { CardbackFilterBar, type CardbackFilterProps } from "./CardbackFilterBar";
+
+export type { MpcFilterProps, ScryfallFilterProps, PokemonFilterProps, UploadLibraryFilterProps, CardbackFilterProps };
 export type CardArtFilterBarProps =
   | MpcFilterProps
   | ScryfallFilterProps
   | PokemonFilterProps
-  | UploadLibraryFilterProps;
+  | UploadLibraryFilterProps
+  | CardbackFilterProps;
 
 /**
  * Unified filter bar for MPC, Scryfall, Pokemon/TCGdex, and Upload Library.
@@ -39,6 +42,10 @@ export function CardArtFilterBar(props: CardArtFilterBarProps) {
 
   if (mode === "upload-library") {
     return <UploadLibraryFilterBar {...(props as UploadLibraryFilterProps)} />;
+  }
+
+  if (mode === "cardback") {
+    return <CardbackFilterBar {...(props as CardbackFilterProps)} />;
   }
 
   return null;

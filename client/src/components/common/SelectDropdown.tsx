@@ -152,13 +152,16 @@ export function SelectDropdown({
 
     // Button content differs between modes
     const renderButtonContent = () => {
+        const hasFavoritesBtn = !disableFavorites && favorites && favorites.values.length > 0;
+        const paddingClass = hasFavoritesBtn ? "" : "";
+
         if (singleSelectMode) {
             // Single-select: show selected label or fallback to buttonText
-            return <span>{selectedLabel || buttonText}</span>;
+            return <span className={paddingClass}>{selectedLabel || buttonText}</span>;
         }
         // Multi-select: show check + count or buttonText
         return (
-            <span className="flex items-center gap-1">
+            <span className={`flex items-center gap-1 ${paddingClass}`}>
                 {selectedCount && selectedCount > 0 ? (
                     <><Check className="w-3.5 h-3.5 text-green-500" />{selectedCount}</>
                 ) : (
@@ -168,14 +171,16 @@ export function SelectDropdown({
         );
     };
 
+    const hasFavoritesBtn = !disableFavorites && favorites && favorites.values.length > 0;
+
     return (
-        <div className={`flex items-center gap-1.5 ${className}`}>
+        <div className={`flex items-center gap-1.5 relative ${className}`}>
             {/* Favorites star button - shown unless disabled */}
-            {!disableFavorites && favorites && favorites.values.length > 0 && (
+            {hasFavoritesBtn && (
                 <button
                     type="button"
                     onClick={handleFavoritesToggle}
-                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600"
+                    className="absolute -left-6 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-600 z-10"
                     title={singleSelectMode
                         ? (anyFavoriteSelected ? "Deselect favorite" : "Select favorite")
                         : (allFavoritesSelected ? "Deselect favorites" : "Select favorites")
@@ -184,7 +189,7 @@ export function SelectDropdown({
                     <Star className={`w-4 h-4 ${(singleSelectMode ? anyFavoriteSelected : allFavoritesSelected) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-400'}`} />
                 </button>
             )}
-            <div ref={containerRef} className={`relative h-10 ${className.includes('w-full') ? 'flex-1' : ''}`}>
+            <div ref={containerRef} className={`relative h-10 ${className.includes('w-full') ? 'flex-1' : ''} ${hasFavoritesBtn ? 'ml-6' : ''}`}>
                 <button
                     ref={buttonRef}
                     type="button"

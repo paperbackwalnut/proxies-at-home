@@ -232,7 +232,7 @@ describe('UploadLibraryGrid', () => {
         const { container } = render(<UploadLibraryGrid {...defaultProps} selectedHash="h2" mode="artwork-modal" />);
 
         // Find the ring element that indicates selection
-        const selectionRing = container.querySelector('.ring-green-500');
+        const selectionRing = container.querySelector('[style*="rgb(34 197 94)"]');
         expect(selectionRing).toBeInTheDocument();
     });
 });
