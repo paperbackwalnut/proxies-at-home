@@ -3,10 +3,21 @@ import type { TcgId } from "@/config/tcgConfig";
 import { recordSettingChange } from "../helpers/undoableSettings";
 import { useUndoRedoStore } from "./undoRedo";
 import { CONSTANTS } from "@/constants/commonConstants";
-import { DarkenMode } from '../../../shared/types';
-import { ImageSource } from '@/types';
+import { DarkenMode } from "../../../shared/types";
+import { ImageSource } from "@/types";
 
-export type LayoutPreset = "A4" | "A3" | "Letter" | "Tabloid" | "Legal" | "ArchA" | "ArchB" | "SuperB" | "A2" | "A1" | "Custom";
+export type LayoutPreset =
+  | "A4"
+  | "A3"
+  | "Letter"
+  | "Tabloid"
+  | "Legal"
+  | "ArchA"
+  | "ArchB"
+  | "SuperB"
+  | "A2"
+  | "A1"
+  | "Custom";
 export type PageOrientation = "portrait" | "landscape";
 
 export type Store = {
@@ -31,19 +42,19 @@ export type Store = {
   setBleedEdgeWidth: (value: number) => void;
   bleedEdge: boolean;
   setBleedEdge: (value: boolean) => void;
-  bleedEdgeUnit: 'mm' | 'in';
-  setBleedEdgeUnit: (value: 'mm' | 'in') => void;
+  bleedEdgeUnit: "mm" | "in";
+  setBleedEdgeUnit: (value: "mm" | "in") => void;
   // --- Bleed Settings (Source/Target Architecture) ---
   // With bleed: Images that already have bleed built in (MPC Autofill, etc.)
   withBleedSourceAmount: number;
   setWithBleedSourceAmount: (value: number) => void;
-  withBleedTargetMode: 'global' | 'manual' | 'none';
-  setWithBleedTargetMode: (value: 'global' | 'manual' | 'none') => void;
+  withBleedTargetMode: "global" | "manual" | "none";
+  setWithBleedTargetMode: (value: "global" | "manual" | "none") => void;
   withBleedTargetAmount: number;
   setWithBleedTargetAmount: (value: number) => void;
   // Without bleed: Regular uploads, Scryfall (noBleedSourceAmount is implicitly 0)
-  noBleedTargetMode: 'global' | 'manual' | 'none';
-  setNoBleedTargetMode: (value: 'global' | 'manual' | 'none') => void;
+  noBleedTargetMode: "global" | "manual" | "none";
+  setNoBleedTargetMode: (value: "global" | "manual" | "none") => void;
   noBleedTargetAmount: number;
   setNoBleedTargetAmount: (value: number) => void;
   darkenMode: DarkenMode;
@@ -87,23 +98,52 @@ export type Store = {
   cardBackPositionY: number;
   setCardBackPositionY: (mm: number) => void;
   // Per-card back offset settings (indexed by grid position)
-  perCardBackOffsets: Record<number, { x: number; y: number; rotation: number }>;
-  setPerCardBackOffset: (index: number, offset: { x: number; y: number; rotation: number }) => void;
-  bulkSetPerCardBackOffsets: (indices: number[], offset: { x: number; y: number; rotation: number }) => void;
+  perCardBackOffsets: Record<
+    number,
+    { x: number; y: number; rotation: number }
+  >;
+  setPerCardBackOffset: (
+    index: number,
+    offset: { x: number; y: number; rotation: number }
+  ) => void;
+  bulkSetPerCardBackOffsets: (
+    indices: number[],
+    offset: { x: number; y: number; rotation: number }
+  ) => void;
   clearPerCardBackOffsets: () => void;
   dpi: number;
   setDpi: (value: number) => void;
-  cutLineStyle: 'none' | 'edges' | 'full';
-  setCutLineStyle: (value: 'none' | 'edges' | 'full') => void;
-  perCardGuideStyle: 'corners' | 'rounded-corners' | 'dashed-corners' | 'dashed-rounded-corners' | 'solid-squared-rect' | 'dashed-squared-rect' | 'dashed-rounded-rect' | 'solid-rounded-rect' | 'none';
-  setPerCardGuideStyle: (value: 'corners' | 'rounded-corners' | 'dashed-corners' | 'dashed-rounded-corners' | 'solid-squared-rect' | 'dashed-squared-rect' | 'dashed-rounded-rect' | 'solid-rounded-rect' | 'none') => void;
-  guidePlacement: 'inside' | 'outside' | 'center';
-  setGuidePlacement: (value: 'inside' | 'outside' | 'center') => void;
+  cutLineStyle: "none" | "edges" | "full";
+  setCutLineStyle: (value: "none" | "edges" | "full") => void;
+  perCardGuideStyle:
+    | "corners"
+    | "rounded-corners"
+    | "dashed-corners"
+    | "dashed-rounded-corners"
+    | "solid-squared-rect"
+    | "dashed-squared-rect"
+    | "dashed-rounded-rect"
+    | "solid-rounded-rect"
+    | "none";
+  setPerCardGuideStyle: (
+    value:
+      | "corners"
+      | "rounded-corners"
+      | "dashed-corners"
+      | "dashed-rounded-corners"
+      | "solid-squared-rect"
+      | "dashed-squared-rect"
+      | "dashed-rounded-rect"
+      | "solid-rounded-rect"
+      | "none"
+  ) => void;
+  guidePlacement: "inside" | "outside" | "center";
+  setGuidePlacement: (value: "inside" | "outside" | "center") => void;
   cutGuideLengthMm: number;
   setCutGuideLengthMm: (value: number) => void;
   // Silhouette Cameo registration marks for print & cut
-  registrationMarks: 'none' | '3' | '4';
-  setRegistrationMarks: (value: 'none' | '3' | '4') => void;
+  registrationMarks: "none" | "3" | "4" | "cricut";
+  setRegistrationMarks: (value: "none" | "3" | "4" | "cricut ") => void;
   registrationMarksPortrait: boolean;
   setRegistrationMarksPortrait: (value: boolean) => void;
   globalLanguage: string;
@@ -111,7 +151,9 @@ export type Store = {
 
   // Sort & Filter
   sortBy: "name" | "type" | "cmc" | "color" | "manual" | "rarity";
-  setSortBy: (value: "manual" | "name" | "type" | "cmc" | "color" | "rarity") => void;
+  setSortBy: (
+    value: "manual" | "name" | "type" | "cmc" | "color" | "rarity"
+  ) => void;
   sortOrder: "asc" | "desc";
   setSortOrder: (value: "asc" | "desc") => void;
   filterManaCost: number[];
@@ -133,8 +175,22 @@ export type Store = {
   setShowProcessingToasts: (value: boolean) => void;
   defaultCardbackId: string;
   setDefaultCardbackId: (id: string) => void;
-  exportMode: 'fronts' | 'interleaved-all' | 'interleaved-custom' | 'duplex' | 'backs' | 'visible_faces';
-  setExportMode: (value: 'fronts' | 'interleaved-all' | 'interleaved-custom' | 'duplex' | 'backs' | 'visible_faces') => void;
+  exportMode:
+    | "fronts"
+    | "interleaved-all"
+    | "interleaved-custom"
+    | "duplex"
+    | "backs"
+    | "visible_faces";
+  setExportMode: (
+    value:
+      | "fronts"
+      | "interleaved-all"
+      | "interleaved-custom"
+      | "duplex"
+      | "backs"
+      | "visible_faces"
+  ) => void;
 
   // Auto-import tokens
   autoImportTokens: boolean;
@@ -143,8 +199,16 @@ export type Store = {
   mpcFuzzySearch: boolean;
   setMpcFuzzySearch: (enabled: boolean) => void;
   // Preferred art source when opening artwork modal
-  preferredArtSource: typeof ImageSource.Scryfall | typeof ImageSource.MPC | typeof ImageSource.UploadLibrary;
-  setPreferredArtSource: (value: typeof ImageSource.Scryfall | typeof ImageSource.MPC | typeof ImageSource.UploadLibrary) => void;
+  preferredArtSource:
+    | typeof ImageSource.Scryfall
+    | typeof ImageSource.MPC
+    | typeof ImageSource.UploadLibrary;
+  setPreferredArtSource: (
+    value:
+      | typeof ImageSource.Scryfall
+      | typeof ImageSource.MPC
+      | typeof ImageSource.UploadLibrary
+  ) => void;
   activeTcg: TcgId;
   setActiveTcg: (value: TcgId) => void;
   setAllSettings: (settings: Partial<Store>) => void;
@@ -169,12 +233,12 @@ const defaultPageSettings = {
   // --- Bleed Settings (Source/Target Architecture) ---
   // With bleed: Images that already have bleed built in (MPC Autofill, etc.)
   withBleedSourceAmount: 3.175, // Default 1/8" for MPC/Uploads with bleed
-  withBleedTargetMode: 'global' as 'global' | 'manual' | 'none', // 'global' | 'manual' | 'none'
+  withBleedTargetMode: "global" as "global" | "manual" | "none", // 'global' | 'manual' | 'none'
   withBleedTargetAmount: 3.175, // Default to 1/8"
 
   // Images WITHOUT built-in bleed (e.g. Scryfall)
   // noBleedSourceAmount is implicitly 0
-  noBleedTargetMode: 'global' as 'global' | 'manual' | 'none', // 'global' | 'manual' | 'none'
+  noBleedTargetMode: "global" as "global" | "manual" | "none", // 'global' | 'manual' | 'none'
   noBleedTargetAmount: 1,
   darkenMode: DarkenMode.ContrastEdges,
   darkenContrast: 2.0,
@@ -194,14 +258,24 @@ const defaultPageSettings = {
   useCustomBackOffset: false,
   cardBackPositionX: 0,
   cardBackPositionY: 0,
-  perCardBackOffsets: {} as Record<number, { x: number; y: number; rotation: number }>,
+  perCardBackOffsets: {} as Record<
+    number,
+    { x: number; y: number; rotation: number }
+  >,
   zoom: 1,
   dpi: 900,
   cutLineStyle: "full" as "full" | "edges" | "none",
-  perCardGuideStyle: "corners" as "corners" | "rounded-corners" | "solid-rounded-rect" | "dashed-rounded-rect" | "solid-squared-rect" | "dashed-squared-rect" | "none",
+  perCardGuideStyle: "corners" as
+    | "corners"
+    | "rounded-corners"
+    | "solid-rounded-rect"
+    | "dashed-rounded-rect"
+    | "solid-squared-rect"
+    | "dashed-squared-rect"
+    | "none",
   guidePlacement: "outside" as "inside" | "outside",
   cutGuideLengthMm: 6.25,
-  registrationMarks: 'none' as 'none' | '3' | '4',
+  registrationMarks: "none" as "none" | "3" | "4" | "cricut",
   registrationMarksPortrait: false,
   globalLanguage: "en",
 
@@ -216,8 +290,13 @@ const defaultPageSettings = {
   filterMatchType: "partial" as "partial" | "exact",
   decklistSortAlpha: false,
   showProcessingToasts: true,
-  defaultCardbackId: "cardback_builtin_mtg",  // Default to MTG cardback
-  exportMode: "fronts" as 'fronts' | 'interleaved-all' | 'interleaved-custom' | 'duplex' | 'backs',
+  defaultCardbackId: "cardback_builtin_mtg", // Default to MTG cardback
+  exportMode: "fronts" as
+    | "fronts"
+    | "interleaved-all"
+    | "interleaved-custom"
+    | "duplex"
+    | "backs",
 
   autoImportTokens: false,
   mpcFuzzySearch: true, // Default to fuzzy search enabled
@@ -297,7 +376,8 @@ export const useSettingsStore = create<Store>()((set) => ({
       }
 
       // Convert dimensions
-      const conversionFactor = newUnit === "mm" ? CONSTANTS.MM_PER_IN : 1 / CONSTANTS.MM_PER_IN;
+      const conversionFactor =
+        newUnit === "mm" ? CONSTANTS.MM_PER_IN : 1 / CONSTANTS.MM_PER_IN;
       return {
         pageSizeUnit: newUnit,
         pageWidth: state.pageWidth * conversionFactor,
@@ -318,224 +398,280 @@ export const useSettingsStore = create<Store>()((set) => ({
         pageWidth: state.pageHeight,
         pageHeight: state.pageWidth,
         // If in Custom mode, also swap the custom dimensions so they persist correctly
-        customPageWidth: isCustom ? state.customPageHeight : state.customPageWidth,
-        customPageHeight: isCustom ? state.customPageWidth : state.customPageHeight,
+        customPageWidth: isCustom
+          ? state.customPageHeight
+          : state.customPageWidth,
+        customPageHeight: isCustom
+          ? state.customPageWidth
+          : state.customPageHeight,
       };
     }),
 
-  setColumns: (columns) => set((state) => {
-    recordSettingChange("columns", state.columns);
-    return { columns };
-  }),
-  setRows: (rows) => set((state) => {
-    recordSettingChange("rows", state.rows);
-    return { rows };
-  }),
-  setBleedEdgeWidth: (value) => set((state) => {
-    recordSettingChange("bleedEdgeWidth", state.bleedEdgeWidth);
-    return { bleedEdgeWidth: value };
-  }),
-  setBleedEdge: (value) => set((state) => {
-    recordSettingChange("bleedEdge", state.bleedEdge);
-    return { bleedEdge: value };
-  }),
-  setBleedEdgeUnit: (value) => set((state) => {
-    recordSettingChange("bleedEdgeUnit", state.bleedEdgeUnit);
-    return { bleedEdgeUnit: value };
-  }),
+  setColumns: (columns) =>
+    set((state) => {
+      recordSettingChange("columns", state.columns);
+      return { columns };
+    }),
+  setRows: (rows) =>
+    set((state) => {
+      recordSettingChange("rows", state.rows);
+      return { rows };
+    }),
+  setBleedEdgeWidth: (value) =>
+    set((state) => {
+      recordSettingChange("bleedEdgeWidth", state.bleedEdgeWidth);
+      return { bleedEdgeWidth: value };
+    }),
+  setBleedEdge: (value) =>
+    set((state) => {
+      recordSettingChange("bleedEdge", state.bleedEdge);
+      return { bleedEdge: value };
+    }),
+  setBleedEdgeUnit: (value) =>
+    set((state) => {
+      recordSettingChange("bleedEdgeUnit", state.bleedEdgeUnit);
+      return { bleedEdgeUnit: value };
+    }),
   // With bleed setters
-  setWithBleedSourceAmount: (value) => set((state) => {
-    recordSettingChange("withBleedSourceAmount", state.withBleedSourceAmount);
-    return { withBleedSourceAmount: value };
-  }),
-  setWithBleedTargetMode: (value) => set((state) => {
-    recordSettingChange("withBleedTargetMode", state.withBleedTargetMode);
-    return { withBleedTargetMode: value };
-  }),
-  setWithBleedTargetAmount: (value) => set((state) => {
-    recordSettingChange("withBleedTargetAmount", state.withBleedTargetAmount);
-    return { withBleedTargetAmount: value };
-  }),
+  setWithBleedSourceAmount: (value) =>
+    set((state) => {
+      recordSettingChange("withBleedSourceAmount", state.withBleedSourceAmount);
+      return { withBleedSourceAmount: value };
+    }),
+  setWithBleedTargetMode: (value) =>
+    set((state) => {
+      recordSettingChange("withBleedTargetMode", state.withBleedTargetMode);
+      return { withBleedTargetMode: value };
+    }),
+  setWithBleedTargetAmount: (value) =>
+    set((state) => {
+      recordSettingChange("withBleedTargetAmount", state.withBleedTargetAmount);
+      return { withBleedTargetAmount: value };
+    }),
 
   // Images without bleed setters
-  setNoBleedTargetMode: (value) => set((state) => {
-    recordSettingChange("noBleedTargetMode", state.noBleedTargetMode);
-    return { noBleedTargetMode: value };
-  }),
-  setNoBleedTargetAmount: (value) => set((state) => {
-    recordSettingChange("noBleedTargetAmount", state.noBleedTargetAmount);
-    return { noBleedTargetAmount: value };
-  }),
-  setDarkenMode: (value) => set((state) => {
-    recordSettingChange("darkenMode", state.darkenMode);
-    return { darkenMode: value };
-  }),
-  setDarkenContrast: (value) => set((state) => {
-    recordSettingChange("darkenContrast", state.darkenContrast);
-    return { darkenContrast: value };
-  }),
-  setDarkenEdgeWidth: (value) => set((state) => {
-    recordSettingChange("darkenEdgeWidth", state.darkenEdgeWidth);
-    return { darkenEdgeWidth: value };
-  }),
-  setDarkenAmount: (value) => set((state) => {
-    recordSettingChange("darkenAmount", state.darkenAmount);
-    return { darkenAmount: value };
-  }),
-  setDarkenBrightness: (value) => set((state) => {
-    recordSettingChange("darkenBrightness", state.darkenBrightness);
-    return { darkenBrightness: value };
-  }),
-  setDarkenAutoDetect: (value) => set((state) => {
-    recordSettingChange("darkenAutoDetect", state.darkenAutoDetect);
-    return { darkenAutoDetect: value };
-  }),
-  setDarkenApplyToScryfall: (value) => set((state) => {
-    recordSettingChange("darkenApplyToScryfall", state.darkenApplyToScryfall);
-    return { darkenApplyToScryfall: value };
-  }),
-  setDarkenApplyToMpc: (value) => set((state) => {
-    recordSettingChange("darkenApplyToMpc", state.darkenApplyToMpc);
-    return { darkenApplyToMpc: value };
-  }),
-  setDarkenApplyToUploads: (value: boolean) => set((state) => {
-    recordSettingChange("darkenApplyToUploads", state.darkenApplyToUploads);
-    return { darkenApplyToUploads: value };
-  }),
-  setDarkenApplyToCardbacks: (value: boolean) => set((state) => {
-    recordSettingChange("darkenApplyToCardbacks", state.darkenApplyToCardbacks);
-    return { darkenApplyToCardbacks: value };
-  }),
-  setGuideColor: (value) => set((state) => {
-    recordSettingChange("guideColor", state.guideColor);
-    return { guideColor: value };
-  }),
-  setGuideWidth: (value) => set((state) => {
-    recordSettingChange("guideWidth", state.guideWidth);
-    return { guideWidth: value };
-  }),
+  setNoBleedTargetMode: (value) =>
+    set((state) => {
+      recordSettingChange("noBleedTargetMode", state.noBleedTargetMode);
+      return { noBleedTargetMode: value };
+    }),
+  setNoBleedTargetAmount: (value) =>
+    set((state) => {
+      recordSettingChange("noBleedTargetAmount", state.noBleedTargetAmount);
+      return { noBleedTargetAmount: value };
+    }),
+  setDarkenMode: (value) =>
+    set((state) => {
+      recordSettingChange("darkenMode", state.darkenMode);
+      return { darkenMode: value };
+    }),
+  setDarkenContrast: (value) =>
+    set((state) => {
+      recordSettingChange("darkenContrast", state.darkenContrast);
+      return { darkenContrast: value };
+    }),
+  setDarkenEdgeWidth: (value) =>
+    set((state) => {
+      recordSettingChange("darkenEdgeWidth", state.darkenEdgeWidth);
+      return { darkenEdgeWidth: value };
+    }),
+  setDarkenAmount: (value) =>
+    set((state) => {
+      recordSettingChange("darkenAmount", state.darkenAmount);
+      return { darkenAmount: value };
+    }),
+  setDarkenBrightness: (value) =>
+    set((state) => {
+      recordSettingChange("darkenBrightness", state.darkenBrightness);
+      return { darkenBrightness: value };
+    }),
+  setDarkenAutoDetect: (value) =>
+    set((state) => {
+      recordSettingChange("darkenAutoDetect", state.darkenAutoDetect);
+      return { darkenAutoDetect: value };
+    }),
+  setDarkenApplyToScryfall: (value) =>
+    set((state) => {
+      recordSettingChange("darkenApplyToScryfall", state.darkenApplyToScryfall);
+      return { darkenApplyToScryfall: value };
+    }),
+  setDarkenApplyToMpc: (value) =>
+    set((state) => {
+      recordSettingChange("darkenApplyToMpc", state.darkenApplyToMpc);
+      return { darkenApplyToMpc: value };
+    }),
+  setDarkenApplyToUploads: (value: boolean) =>
+    set((state) => {
+      recordSettingChange("darkenApplyToUploads", state.darkenApplyToUploads);
+      return { darkenApplyToUploads: value };
+    }),
+  setDarkenApplyToCardbacks: (value: boolean) =>
+    set((state) => {
+      recordSettingChange(
+        "darkenApplyToCardbacks",
+        state.darkenApplyToCardbacks
+      );
+      return { darkenApplyToCardbacks: value };
+    }),
+  setGuideColor: (value) =>
+    set((state) => {
+      recordSettingChange("guideColor", state.guideColor);
+      return { guideColor: value };
+    }),
+  setGuideWidth: (value) =>
+    set((state) => {
+      recordSettingChange("guideWidth", state.guideWidth);
+      return { guideWidth: value };
+    }),
   setZoom: (value) => set({ zoom: value }), // Zoom is NOT tracked (too frequent)
-  setCardSpacingMm: (mm) => set((state) => {
-    const value = Math.max(0, mm);
-    recordSettingChange("cardSpacingMm", state.cardSpacingMm);
-    return { cardSpacingMm: value };
-  }),
-  setCardPositionX: (mm) => set((state) => {
-    recordSettingChange("cardPositionX", state.cardPositionX);
-    return { cardPositionX: mm };
-  }),
-  setCardPositionY: (mm) => set((state) => {
-    recordSettingChange("cardPositionY", state.cardPositionY);
-    return { cardPositionY: mm };
-  }),
-  setUseCustomBackOffset: (value) => set((state) => {
-    recordSettingChange("useCustomBackOffset", state.useCustomBackOffset);
-    return { useCustomBackOffset: value };
-  }),
-  setCardBackPositionX: (mm) => set((state) => {
-    recordSettingChange("cardBackPositionX", state.cardBackPositionX);
-    return { cardBackPositionX: mm };
-  }),
-  setCardBackPositionY: (mm) => set((state) => {
-    recordSettingChange("cardBackPositionY", state.cardBackPositionY);
-    return { cardBackPositionY: mm };
-  }),
-  setPerCardBackOffset: (index, offset) => set((state) => {
-    recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
-    return {
-      perCardBackOffsets: {
-        ...state.perCardBackOffsets,
-        [index]: offset,
-      },
-    };
-  }),
-  bulkSetPerCardBackOffsets: (indices, offset) => set((state) => {
-    recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
-    const newOffsets = { ...state.perCardBackOffsets };
-    indices.forEach((index) => {
-      newOffsets[index] = offset;
-    });
-    return { perCardBackOffsets: newOffsets };
-  }),
-  clearPerCardBackOffsets: () => set((state) => {
-    recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
-    return { perCardBackOffsets: {} };
-  }),
-  setDpi: (dpi) => set((state) => {
-    recordSettingChange("dpi", state.dpi);
-    return { dpi };
-  }),
-  setCutLineStyle: (value) => set((state) => {
-    recordSettingChange("cutLineStyle", state.cutLineStyle);
-    return { cutLineStyle: value };
-  }),
-  setPerCardGuideStyle: (value) => set((state) => {
-    recordSettingChange("perCardGuideStyle", state.perCardGuideStyle);
-    return { perCardGuideStyle: value };
-  }),
-  setGuidePlacement: (value) => set((state) => {
-    recordSettingChange("guidePlacement", state.guidePlacement);
-    return { guidePlacement: value };
-  }),
-  setCutGuideLengthMm: (value) => set((state) => {
-    recordSettingChange("cutGuideLengthMm", state.cutGuideLengthMm);
-    return { cutGuideLengthMm: value };
-  }),
-  setRegistrationMarks: (value) => set((state) => {
-    recordSettingChange("registrationMarks", state.registrationMarks);
-    return { registrationMarks: value };
-  }),
-  setRegistrationMarksPortrait: (value) => set((state) => {
-    recordSettingChange("registrationMarksPortrait", state.registrationMarksPortrait);
-    return { registrationMarksPortrait: value };
-  }),
-  setGlobalLanguage: (lang) => set((state) => {
-    recordSettingChange("globalLanguage", state.globalLanguage);
-    return { globalLanguage: lang };
-  }),
-
+  setCardSpacingMm: (mm) =>
+    set((state) => {
+      const value = Math.max(0, mm);
+      recordSettingChange("cardSpacingMm", state.cardSpacingMm);
+      return { cardSpacingMm: value };
+    }),
+  setCardPositionX: (mm) =>
+    set((state) => {
+      recordSettingChange("cardPositionX", state.cardPositionX);
+      return { cardPositionX: mm };
+    }),
+  setCardPositionY: (mm) =>
+    set((state) => {
+      recordSettingChange("cardPositionY", state.cardPositionY);
+      return { cardPositionY: mm };
+    }),
+  setUseCustomBackOffset: (value) =>
+    set((state) => {
+      recordSettingChange("useCustomBackOffset", state.useCustomBackOffset);
+      return { useCustomBackOffset: value };
+    }),
+  setCardBackPositionX: (mm) =>
+    set((state) => {
+      recordSettingChange("cardBackPositionX", state.cardBackPositionX);
+      return { cardBackPositionX: mm };
+    }),
+  setCardBackPositionY: (mm) =>
+    set((state) => {
+      recordSettingChange("cardBackPositionY", state.cardBackPositionY);
+      return { cardBackPositionY: mm };
+    }),
+  setPerCardBackOffset: (index, offset) =>
+    set((state) => {
+      recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
+      return {
+        perCardBackOffsets: {
+          ...state.perCardBackOffsets,
+          [index]: offset,
+        },
+      };
+    }),
+  bulkSetPerCardBackOffsets: (indices, offset) =>
+    set((state) => {
+      recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
+      const newOffsets = { ...state.perCardBackOffsets };
+      indices.forEach((index) => {
+        newOffsets[index] = offset;
+      });
+      return { perCardBackOffsets: newOffsets };
+    }),
+  clearPerCardBackOffsets: () =>
+    set((state) => {
+      recordSettingChange("perCardBackOffsets", state.perCardBackOffsets);
+      return { perCardBackOffsets: {} };
+    }),
+  setDpi: (dpi) =>
+    set((state) => {
+      recordSettingChange("dpi", state.dpi);
+      return { dpi };
+    }),
+  setCutLineStyle: (value) =>
+    set((state) => {
+      recordSettingChange("cutLineStyle", state.cutLineStyle);
+      return { cutLineStyle: value };
+    }),
+  setPerCardGuideStyle: (value) =>
+    set((state) => {
+      recordSettingChange("perCardGuideStyle", state.perCardGuideStyle);
+      return { perCardGuideStyle: value };
+    }),
+  setGuidePlacement: (value) =>
+    set((state) => {
+      recordSettingChange("guidePlacement", state.guidePlacement);
+      return { guidePlacement: value };
+    }),
+  setCutGuideLengthMm: (value) =>
+    set((state) => {
+      recordSettingChange("cutGuideLengthMm", state.cutGuideLengthMm);
+      return { cutGuideLengthMm: value };
+    }),
+  setRegistrationMarks: (value) =>
+    set((state) => {
+      recordSettingChange("registrationMarks", state.registrationMarks);
+      return { registrationMarks: value };
+    }),
+  setRegistrationMarksPortrait: (value) =>
+    set((state) => {
+      recordSettingChange(
+        "registrationMarksPortrait",
+        state.registrationMarksPortrait
+      );
+      return { registrationMarksPortrait: value };
+    }),
+  setGlobalLanguage: (lang) =>
+    set((state) => {
+      recordSettingChange("globalLanguage", state.globalLanguage);
+      return { globalLanguage: lang };
+    }),
 
   // Sort & Filter
   sortBy: "manual",
-  setSortBy: (value) => set((state) => {
-    recordSettingChange("sortBy", state.sortBy);
-    return { sortBy: value };
-  }),
+  setSortBy: (value) =>
+    set((state) => {
+      recordSettingChange("sortBy", state.sortBy);
+      return { sortBy: value };
+    }),
   sortOrder: "asc",
-  setSortOrder: (value) => set((state) => {
-    recordSettingChange("sortOrder", state.sortOrder);
-    return { sortOrder: value };
-  }),
+  setSortOrder: (value) =>
+    set((state) => {
+      recordSettingChange("sortOrder", state.sortOrder);
+      return { sortOrder: value };
+    }),
   filterManaCost: [],
-  setFilterManaCost: (value) => set((state) => {
-    recordSettingChange("filterManaCost", state.filterManaCost);
-    return { filterManaCost: value };
-  }),
+  setFilterManaCost: (value) =>
+    set((state) => {
+      recordSettingChange("filterManaCost", state.filterManaCost);
+      return { filterManaCost: value };
+    }),
   filterColors: [],
-  setFilterColors: (value) => set((state) => {
-    recordSettingChange("filterColors", state.filterColors);
-    return { filterColors: value };
-  }),
+  setFilterColors: (value) =>
+    set((state) => {
+      recordSettingChange("filterColors", state.filterColors);
+      return { filterColors: value };
+    }),
   filterTypes: [],
-  setFilterTypes: (value) => set((state) => {
-    recordSettingChange("filterTypes", state.filterTypes);
-    return { filterTypes: value };
-  }),
+  setFilterTypes: (value) =>
+    set((state) => {
+      recordSettingChange("filterTypes", state.filterTypes);
+      return { filterTypes: value };
+    }),
   filterCategories: [],
-  setFilterCategories: (value) => set((state) => {
-    recordSettingChange("filterCategories", state.filterCategories);
-    return { filterCategories: value };
-  }),
-  setFilterFeatures: (value) => set((state) => {
-    recordSettingChange("filterFeatures", state.filterFeatures);
-    return { filterFeatures: value };
-  }),
+  setFilterCategories: (value) =>
+    set((state) => {
+      recordSettingChange("filterCategories", state.filterCategories);
+      return { filterCategories: value };
+    }),
+  setFilterFeatures: (value) =>
+    set((state) => {
+      recordSettingChange("filterFeatures", state.filterFeatures);
+      return { filterFeatures: value };
+    }),
 
   filterMatchType: "partial",
-  setFilterMatchType: (value) => set((state) => {
-    recordSettingChange("filterMatchType", state.filterMatchType);
-    return { filterMatchType: value };
-  }),
+  setFilterMatchType: (value) =>
+    set((state) => {
+      recordSettingChange("filterMatchType", state.filterMatchType);
+      return { filterMatchType: value };
+    }),
   decklistSortAlpha: false,
   setDecklistSortAlpha: (value) => set({ decklistSortAlpha: value }),
   showProcessingToasts: true,
@@ -554,7 +690,7 @@ export const useSettingsStore = create<Store>()((set) => ({
   // Preferred art source
   preferredArtSource: ImageSource.Scryfall,
   setPreferredArtSource: (value) => set({ preferredArtSource: value }),
-  activeTcg: 'mtg' as TcgId,
+  activeTcg: "mtg" as TcgId,
   setActiveTcg: (value) => set({ activeTcg: value }),
   // Card Editor section state
 
@@ -630,23 +766,33 @@ export interface LegacySettingsState extends Partial<Store> {
   withBleedAmount?: number;
   overrideWithBleedGenerate?: boolean;
   withBleedGenerateAmount?: number;
-  withBleedMode?: 'trim' | 'keep' | 'none';
+  withBleedMode?: "trim" | "keep" | "none";
   overrideNoBleedGenerate?: boolean;
   noBleedGenerateAmount?: number;
-  noBleedMode?: 'generate' | 'none';
+  noBleedMode?: "generate" | "none";
   // v10 legacy (settings panel state could be different shape)
-  settingsPanelState?: { order?: string[]; collapsed?: Record<string, boolean> };
+  settingsPanelState?: {
+    order?: string[];
+    collapsed?: Record<string, boolean>;
+  };
 }
 
 // Migration logic extracted from persist middleware
-export function migrateLegacySettings(persistedState: LegacySettingsState, version = 10): Partial<Store> {
+export function migrateLegacySettings(
+  persistedState: LegacySettingsState,
+  version = 10
+): Partial<Store> {
   if (!persistedState || typeof persistedState !== "object") {
     return defaultPageSettings;
   }
 
   if (version < 2) {
-    const { pageWidth: _pageWidth, pageHeight: _pageHeight, pageSizeUnit: _pageSizeUnit, ...rest } =
-      persistedState as Partial<Store>;
+    const {
+      pageWidth: _pageWidth,
+      pageHeight: _pageHeight,
+      pageSizeUnit: _pageSizeUnit,
+      ...rest
+    } = persistedState as Partial<Store>;
     return { ...defaultPageSettings, ...rest };
   }
 
@@ -666,7 +812,7 @@ export function migrateLegacySettings(persistedState: LegacySettingsState, versi
     return {
       ...defaultPageSettings,
       ...(persistedState as Partial<Store>),
-      perCardGuideStyle: 'corners',
+      perCardGuideStyle: "corners",
     };
   }
 
@@ -682,22 +828,22 @@ export function migrateLegacySettings(persistedState: LegacySettingsState, versi
     newState.withBleedSourceAmount = old.withBleedAmount ?? 3.175;
 
     if (old.overrideWithBleedGenerate) {
-      newState.withBleedTargetMode = 'manual';
+      newState.withBleedTargetMode = "manual";
       newState.withBleedTargetAmount = old.withBleedGenerateAmount ?? 3.175;
-    } else if (old.withBleedMode === 'none') {
-      newState.withBleedTargetMode = 'none';
+    } else if (old.withBleedMode === "none") {
+      newState.withBleedTargetMode = "none";
     } else {
-      newState.withBleedTargetMode = 'global';
+      newState.withBleedTargetMode = "global";
     }
 
     // No Bleed Migration
     if (old.overrideNoBleedGenerate) {
-      newState.noBleedTargetMode = 'manual';
+      newState.noBleedTargetMode = "manual";
       newState.noBleedTargetAmount = old.noBleedGenerateAmount ?? 3.175;
-    } else if (old.noBleedMode === 'none') {
-      newState.noBleedTargetMode = 'none';
+    } else if (old.noBleedMode === "none") {
+      newState.noBleedTargetMode = "none";
     } else {
-      newState.noBleedTargetMode = 'global';
+      newState.noBleedTargetMode = "global";
     }
 
     return newState;
@@ -708,13 +854,13 @@ export function migrateLegacySettings(persistedState: LegacySettingsState, versi
     const state = persistedState;
     if (state.settingsPanelState?.order) {
       const order = state.settingsPanelState.order;
-      if (!order.includes('export')) {
+      if (!order.includes("export")) {
         // Insert 'export' before 'application'
-        const appIndex = order.indexOf('application');
+        const appIndex = order.indexOf("application");
         if (appIndex !== -1) {
-          order.splice(appIndex, 0, 'export');
+          order.splice(appIndex, 0, "export");
         } else {
-          order.push('export');
+          order.push("export");
         }
       }
     }
