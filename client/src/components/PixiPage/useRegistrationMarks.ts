@@ -99,40 +99,68 @@ export function useRegistrationMarks({
 
         // TOP-LEFT: vertical rect + horizontal rect + triangle
         g.rect(3.3514 * s, Y + 10.6264 * s, 1.4746 * s, 22.3908 * s);
-        g.rect(6.4107 * s, Y + 10.6264 * s, 22.4162 * s, 1.4746 * s);
+        g.rect(3.3514 * s, Y + 10.6264 * s, 25.4769 * s, 1.4746 * s);
         g.poly([
-          3.3532 * s, Y + 11.3637 * s,
-          4.8278 * s, Y + 10.6264 * s,
-          4.8278 * s, Y + 12.101 * s,
+          3.3532 * s,
+          Y + 11.3637 * s,
+          4.8278 * s,
+          Y + 10.6264 * s,
+          4.8278 * s,
+          Y + 12.101 * s,
         ]);
 
         // TOP-RIGHT: double-line L polygon
         g.poly([
-          W - 4.826 * s,  Y + 36.025 * s,
-          W - 3.351 * s,  Y + 36.025 * s,
-          W - 3.351 * s,  Y + 10.625 * s,
-          W - 28.825 * s, Y + 10.625 * s,
-          W - 28.825 * s, Y + 12.100 * s,
-          W - 4.826 * s,  Y + 12.100 * s,
+          W - 4.826 * s,
+          Y + 36.025 * s,
+          W - 3.351 * s,
+          Y + 36.025 * s,
+          W - 3.351 * s,
+          Y + 10.625 * s,
+          W - 28.825 * s,
+          Y + 10.625 * s,
+          W - 28.825 * s,
+          Y + 12.1 * s,
+          W - 4.826 * s,
+          Y + 12.1 * s,
         ]);
 
         // BOTTOM-LEFT: vertical rect + horizontal rect + triangle
-        g.rect(3.3514 * s, Y + H - 13.6342 * s - 22.3908 * s, 1.4746 * s, 22.3908 * s);
-        g.rect(6.4107 * s, Y + H - 10.6264 * s - 1.4746 * s, 22.4162 * s, 1.4746 * s);
+        g.rect(
+          3.3514 * s,
+          Y + H - 13.6342 * s - 22.3908 * s,
+          1.4746 * s,
+          22.3908 * s
+        );
+        g.rect(
+          6.4107 * s,
+          Y + H - 10.6264 * s - 1.4746 * s,
+          22.4162 * s,
+          1.4746 * s
+        );
         g.poly([
-          3.3532 * s, Y + H - 11.3637 * s,
-          4.8278 * s, Y + H - 10.6264 * s,
-          4.8278 * s, Y + H - 12.101 * s,
+          3.3532 * s,
+          Y + H - 11.3637 * s,
+          4.8278 * s,
+          Y + H - 10.6264 * s,
+          4.8278 * s,
+          Y + H - 12.101 * s,
         ]);
 
         // BOTTOM-RIGHT: double-line L polygon
         g.poly([
-          W - 4.826 * s,  Y + H - 36.025 * s,
-          W - 3.351 * s,  Y + H - 36.025 * s,
-          W - 3.351 * s,  Y + H - 10.625 * s,
-          W - 28.825 * s, Y + H - 10.625 * s,
-          W - 28.825 * s, Y + H - 12.100 * s,
-          W - 4.826 * s,  Y + H - 12.100 * s,
+          W - 4.826 * s,
+          Y + H - 36.025 * s,
+          W - 3.351 * s,
+          Y + H - 36.025 * s,
+          W - 3.351 * s,
+          Y + H - 10.625 * s,
+          W - 28.825 * s,
+          Y + H - 10.625 * s,
+          W - 28.825 * s,
+          Y + H - 12.1 * s,
+          W - 4.826 * s,
+          Y + H - 12.1 * s,
         ]);
       });
 
@@ -163,25 +191,94 @@ export function useRegistrationMarks({
 
       if (registrationMarksPortrait) {
         if (registrationMarks === "3") {
-          g.rect(bottomLeftX, bottomLeftY - squareSizePx, squareSizePx, squareSizePx);
+          g.rect(
+            bottomLeftX,
+            bottomLeftY - squareSizePx,
+            squareSizePx,
+            squareSizePx
+          );
         } else {
-          drawLShape(g, bottomLeftX, bottomLeftY, armLengthPx, lineWidthPx, "up", "right");
+          drawLShape(
+            g,
+            bottomLeftX,
+            bottomLeftY,
+            armLengthPx,
+            lineWidthPx,
+            "up",
+            "right"
+          );
         }
-        drawLShape(g, topLeftX,     topLeftY,     armLengthPx, lineWidthPx, "down", "right");
-        drawLShape(g, bottomRightX, bottomRightY, armLengthPx, lineWidthPx, "up",   "left");
+        drawLShape(
+          g,
+          topLeftX,
+          topLeftY,
+          armLengthPx,
+          lineWidthPx,
+          "down",
+          "right"
+        );
+        drawLShape(
+          g,
+          bottomRightX,
+          bottomRightY,
+          armLengthPx,
+          lineWidthPx,
+          "up",
+          "left"
+        );
         if (registrationMarks === "4") {
-          drawLShape(g, topRightX, topRightY, armLengthPx, lineWidthPx, "down", "left");
+          drawLShape(
+            g,
+            topRightX,
+            topRightY,
+            armLengthPx,
+            lineWidthPx,
+            "down",
+            "left"
+          );
         }
       } else {
         if (registrationMarks === "3") {
           g.rect(topLeftX, topLeftY, squareSizePx, squareSizePx);
         } else {
-          drawLShape(g, topLeftX, topLeftY, armLengthPx, lineWidthPx, "down", "right");
+          drawLShape(
+            g,
+            topLeftX,
+            topLeftY,
+            armLengthPx,
+            lineWidthPx,
+            "down",
+            "right"
+          );
         }
-        drawLShape(g, topRightX,   topRightY,   armLengthPx, lineWidthPx, "down", "left");
-        drawLShape(g, bottomLeftX, bottomLeftY, armLengthPx, lineWidthPx, "up",   "right");
+        drawLShape(
+          g,
+          topRightX,
+          topRightY,
+          armLengthPx,
+          lineWidthPx,
+          "down",
+          "left"
+        );
+        drawLShape(
+          g,
+          bottomLeftX,
+          bottomLeftY,
+          armLengthPx,
+          lineWidthPx,
+          "up",
+          "right"
+        );
         if (registrationMarks === "4") {
-          drawLShape(g, bottomRightX, bottomRightY, armLengthPx, lineWidthPx, "up", "left");
+          drawLShape(
+            g,
+            bottomRightX,
+            bottomRightY,
+            armLengthPx,
+            lineWidthPx,
+            "up",
+            "left"
+          );
         }
       }
     });

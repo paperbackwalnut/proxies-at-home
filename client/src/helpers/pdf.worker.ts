@@ -505,7 +505,7 @@ function drawSilhouetteRegistrationMarks(
 
     // TOP-LEFT: 2 rects + triangle
     ctx.fillRect(3.3514*s, 10.6264*s, 1.4746*s, 22.3908*s);
-    ctx.fillRect(6.4107*s, 10.6264*s, 22.4162*s, 1.4746*s);
+    ctx.fillRect(3.3514*s, 10.6264*s, 25.4769*s, 1.4746*s);
     ctx.beginPath();
     ctx.moveTo(3.3532*s, 11.3637*s);
     ctx.lineTo(4.8278*s, 10.6264*s);
