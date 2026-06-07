@@ -735,7 +735,7 @@ export const useSettingsStore = create<Store>()((set) => ({
       bleedEdge: true,
       bleedEdgeWidth: 0.625,
       bleedEdgeUnit: "mm" as "mm" | "in",
-      cardSpacingMm: 1.25,
+      cardSpacingMm: 0,
       cardPositionX: 0,
       cardPositionY: 0,
       registrationMarks: "3" as "none" | "3" | "4" | "cricut",
