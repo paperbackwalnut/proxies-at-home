@@ -597,7 +597,6 @@ export default function ProxyBuilderPage() {
   // Desktop Layout
   return (
     <div className="flex flex-col h-dvh overflow-hidden">
-      <DonationBanner />
       <div className="flex flex-row flex-1 overflow-hidden relative">
         <div
           className="relative transition-all duration-200 ease-in-out z-30 h-full overflow-hidden border-r border-gray-300 dark:border-gray-600"
