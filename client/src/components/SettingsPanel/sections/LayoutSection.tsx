@@ -1,14 +1,16 @@
 import { useSettingsStore } from "@/store/settings";
-import { Label } from "flowbite-react";
+import { Label, Button } from "flowbite-react";
 import { PageSizeControl } from "../../LayoutSettings/PageSizeControl";
 import { NumberInput } from "@/components/common";
 import { useNormalizedInput } from "@/hooks/useInputHooks";
+import { AutoTooltip } from "@/components/common";
 
 export function LayoutSection() {
     const columns = useSettingsStore((state) => state.columns);
     const rows = useSettingsStore((state) => state.rows);
     const setColumns = useSettingsStore((state) => state.setColumns);
     const setRows = useSettingsStore((state) => state.setRows);
+    const applyScmPreset = useSettingsStore((state) => state.applyScmPreset);
 
     const columnsInput = useNormalizedInput(
         columns,
@@ -24,6 +26,18 @@ export function LayoutSection() {
 
     return (
         <div className="space-y-4">
+            <div className="flex items-center gap-2">
+                <Button
+                    color="gray"
+                    size="sm"
+                    className="flex-1"
+                    onClick={applyScmPreset}
+                >
+                    Silhouette Card Maker
+                </Button>
+                <AutoTooltip content="Apply settings compatible with Alan Cha's Silhouette Card Maker (letter-standard-v6): Letter landscape, 4×2 grid, 0.625mm bleed, 1.25mm card gap, 3-mark Silhouette registration, no cut overlays." />
+            </div>
+
             <PageSizeControl />
 
             <div className="grid grid-cols-2 gap-3">

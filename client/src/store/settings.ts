@@ -212,6 +212,7 @@ export type Store = {
   activeTcg: TcgId;
   setActiveTcg: (value: TcgId) => void;
   setAllSettings: (settings: Partial<Store>) => void;
+  applyScmPreset: () => void;
   hasHydrated: boolean;
   setHasHydrated: (value: boolean) => void;
 };
@@ -696,6 +697,66 @@ export const useSettingsStore = create<Store>()((set) => ({
 
   hasHydrated: false,
   setHasHydrated: (value) => set({ hasHydrated: value }),
+
+  applyScmPreset: () => {
+    // Capture current state for undo
+    const currentState = useSettingsStore.getState();
+    const oldSettings = {
+      pageSizePreset: currentState.pageSizePreset,
+      pageOrientation: currentState.pageOrientation,
+      pageWidth: currentState.pageWidth,
+      pageHeight: currentState.pageHeight,
+      pageSizeUnit: currentState.pageSizeUnit,
+      columns: currentState.columns,
+      rows: currentState.rows,
+      bleedEdge: currentState.bleedEdge,
+      bleedEdgeWidth: currentState.bleedEdgeWidth,
+      bleedEdgeUnit: currentState.bleedEdgeUnit,
+      cardSpacingMm: currentState.cardSpacingMm,
+      cardPositionX: currentState.cardPositionX,
+      cardPositionY: currentState.cardPositionY,
+      registrationMarks: currentState.registrationMarks,
+      registrationMarksPortrait: currentState.registrationMarksPortrait,
+      cutLineStyle: currentState.cutLineStyle,
+      perCardGuideStyle: currentState.perCardGuideStyle,
+    };
+
+    // Silhouette Card Maker letter-standard-v6 compatible settings.
+    // Paper: Letter landscape, 4×2 grid, 0.625mm bleed, 1.25mm inter-card gap,
+    // 3-mark Silhouette registration, no cut overlays.
+    const scmSettings = {
+      pageSizePreset: "Letter" as LayoutPreset,
+      pageOrientation: "landscape" as PageOrientation,
+      pageWidth: 11,
+      pageHeight: 8.5,
+      pageSizeUnit: "in" as "in" | "mm",
+      columns: 4,
+      rows: 2,
+      bleedEdge: true,
+      bleedEdgeWidth: 0.625,
+      bleedEdgeUnit: "mm" as "mm" | "in",
+      cardSpacingMm: 1.25,
+      cardPositionX: 0,
+      cardPositionY: 0,
+      registrationMarks: "3" as "none" | "3" | "4" | "cricut",
+      registrationMarksPortrait: false,
+      cutLineStyle: "none" as "none" | "edges" | "full",
+      perCardGuideStyle: "none" as const,
+    };
+
+    set(scmSettings);
+
+    useUndoRedoStore.getState().pushAction({
+      type: "CHANGE_SETTING",
+      description: "Apply SCM preset",
+      undo: async () => {
+        useSettingsStore.setState(oldSettings);
+      },
+      redo: async () => {
+        useSettingsStore.setState(scmSettings);
+      },
+    });
+  },
 
   resetSettings: () => {
     // Capture current state for undo
