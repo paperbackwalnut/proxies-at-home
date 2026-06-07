@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Button, Modal, ModalBody, ModalHeader, Select, Textarea } from "flowbite-react";
 import { ExternalLink, Search, Sparkles } from "lucide-react";
+import { ToggleButtonGroup } from "@/components/common";
 import { parseDeckList } from "@/helpers/importParsers";
 import { TCG_ORDER, getTcgConfig } from "@/config/tcgConfig";
 import type { ImportIntent } from "@/helpers/importParsers";
@@ -41,6 +42,14 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
     const [showNoTokensModal, setShowNoTokensModal] = useState(false);
     const [isAdvancedSearchOpen, setIsAdvancedSearchOpen] = useState(false);
 
+    // Per-import source override — starts from the global preference but can be
+    // changed per session without touching the persistent setting.
+    const [localSource, setLocalSource] = useState<'scryfall' | 'mpc'>(
+        preferredArtSource === 'mpc' ? 'mpc' : 'scryfall'
+    );
+    // Pokemon always uses its own source regardless of localSource.
+    const effectiveSource = activeTcg === 'pokemon' ? 'scryfall' : localSource;
+
     // Check if we have cards that need tokens but don't have them
     const currentProjectId = useProjectStore((state) => state.currentProjectId);
     const hasTokensToFetch = useLiveQuery(async () => {
@@ -60,7 +69,7 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
 
         const enrichedIntents = intents.map(i => ({
             ...i,
-            sourcePreference: i.sourcePreference || preferredArtSource
+            sourcePreference: i.sourcePreference || effectiveSource
         }));
 
         if (!enrichedIntents.length) return;
@@ -186,26 +195,38 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
             </h6>
 
             <div className={`space-y-1 ${mobile ? 'landscape:flex-1 landscape:flex landscape:flex-col' : ''}`}>
-                <h6 className="font-medium dark:text-white">
-                    Add Cards (
-                    {activeTcg === 'pokemon' ? (
-                        <a href="https://tcgdex.dev" target="_blank" rel="noopener noreferrer"
-                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
-                            TCGdex<ExternalLink className="inline-block size-4 ml-1" />
-                        </a>
-                    ) : preferredArtSource === 'mpc' ? (
-                        <a href="https://mpcfill.com" target="_blank" rel="noopener noreferrer"
-                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
-                            MPC Autofill<ExternalLink className="inline-block size-4 ml-1" />
-                        </a>
-                    ) : (
-                        <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer"
-                            className="underline hover:text-blue-600 dark:hover:text-blue-400">
-                            Scryfall<ExternalLink className="inline-block size-4 ml-1" />
-                        </a>
+                <div className="flex items-center justify-between gap-2">
+                    <h6 className="font-medium dark:text-white shrink-0">
+                        Add Cards&nbsp;(
+                        {activeTcg === 'pokemon' ? (
+                            <a href="https://tcgdex.dev" target="_blank" rel="noopener noreferrer"
+                                className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                                TCGdex<ExternalLink className="inline-block size-4 ml-1" />
+                            </a>
+                        ) : effectiveSource === 'mpc' ? (
+                            <a href="https://mpcfill.com" target="_blank" rel="noopener noreferrer"
+                                className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                                MPC Autofill<ExternalLink className="inline-block size-4 ml-1" />
+                            </a>
+                        ) : (
+                            <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer"
+                                className="underline hover:text-blue-600 dark:hover:text-blue-400">
+                                Scryfall<ExternalLink className="inline-block size-4 ml-1" />
+                            </a>
+                        )}
+                        )
+                    </h6>
+                    {activeTcg !== 'pokemon' && (
+                        <ToggleButtonGroup
+                            options={[
+                                { id: 'scryfall', label: 'Scryfall' },
+                                { id: 'mpc', label: 'MPC' },
+                            ]}
+                            value={localSource}
+                            onChange={(val) => setLocalSource(val as 'scryfall' | 'mpc')}
+                        />
                     )}
-                    )
-                </h6>
+                </div>
 
                 <Textarea
                     className={`h-64 ${mobile ? 'landscape:flex-1 landscape:[&::-webkit-scrollbar]:hidden landscape:[-ms-overflow-style:none] landscape:[scrollbar-width:none]' : ''} resize-none text-base p-3`}
@@ -260,7 +281,7 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
                     onClose={() => setIsAdvancedSearchOpen(false)}
                     onSelectCard={handleAddCard}
                     keepOpenOnAdd={true}
-                    initialSource={activeTcg === 'pokemon' ? 'scryfall' : preferredArtSource}
+                    initialSource={effectiveSource}
                 />
             )}
 
