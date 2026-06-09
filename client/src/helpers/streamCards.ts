@@ -277,7 +277,10 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
         const CHUNK_SIZE = CONSTANTS.MPC_CHUNK_SIZE;
         const mpcInfos = [...uniqueInfos];
         const failingInfos: CardInfo[] = [];
-        let processedMpc = 0;
+        // Counts unique card names processed, not total card instances (e.g. "4x Lightning Bolt"
+        // counts as 1 unique name). onProgress receives (processedUniqueNames, totalUniqueNames).
+        let processedUniqueNames = 0;
+        const totalUniqueNames = uniqueInfos.length;
 
         for (let i = 0; i < mpcInfos.length; i += CHUNK_SIZE) {
             if (signal.aborted) break;
@@ -286,36 +289,39 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
             const matches = await findBestMpcMatches(chunk);
             const matchedNames = new Set<string>();
 
-            for (const match of matches) {
+            // Process all matches in this chunk in parallel — each match is independent
+            // (distinct card name, distinct placeholder UUIDs, distinct image URL).
+            // Chunk-level throttling is preserved by the outer for loop.
+            await Promise.all(matches.map(async (match) => {
                 const key = cardKey(match.info);
                 matchedNames.add(key);
 
                 const placeholderUuids = placeholderUuidsByKey.get(key);
-                if (!placeholderUuids || placeholderUuids.length === 0) continue;
+                if (!placeholderUuids || placeholderUuids.length === 0) return;
 
                 const entry = quantityByKey.get(key);
-                if (!entry) continue;
+                if (!entry) return;
 
                 const imageId = await addRemoteImage([match.imageUrl], entry.instances.length, ImageSource.MPC);
                 const { name: cardName, hasBuiltInBleed, needsEnrichment } = parseMpcCardLogic(match.mpcCard);
 
-                // Update all placeholder cards for this key with the MPC image
+                // Read all placeholder cards in one round-trip, then write in one bulk update.
                 await db.transaction('rw', db.cards, async () => {
-                    for (const uuid of placeholderUuids) {
-                        const existingCard = await db.cards.get(uuid);
-                        const currentOverrides = existingCard?.overrides || {};
-                        await db.cards.update(uuid, {
-                            name: cardName,
-                            imageId,
-                            hasBuiltInBleed,
-                            needsEnrichment,
-                            overrides: {
-                                ...currentOverrides,
+                    const existingCards = await db.cards.bulkGet(placeholderUuids);
+                    await db.cards.bulkUpdate(
+                        placeholderUuids.map((uuid, i) => ({
+                            key: uuid,
+                            changes: {
+                                name: cardName,
+                                imageId,
+                                hasBuiltInBleed,
+                                needsEnrichment,
+                                overrides: { ...(existingCards[i]?.overrides ?? {}) },
                             },
-                        });
-                    }
+                        }))
+                    );
                 });
-            }
+            }));
 
             // Collect failed lookups for Scryfall fallback
             for (const info of chunk) {
@@ -324,8 +330,9 @@ export async function streamCards(options: StreamCardsOptions): Promise<StreamCa
                 }
             }
 
-            processedMpc += chunk.length;
-            onProgress?.(processedMpc, uniqueInfos.length);
+            processedUniqueNames += chunk.length;
+            // Note: reports unique-name progress, not total card-instance count.
+            onProgress?.(processedUniqueNames, totalUniqueNames);
         }
 
         // Enrich MPC cards with token_parts from server (non-blocking, fire-and-forget)
