@@ -35,7 +35,7 @@ export function LayoutSection() {
                 >
                     Silhouette Card Maker
                 </Button>
-                <AutoTooltip content="Apply settings compatible with Alan Cha's Silhouette Card Maker (letter-standard-v6): Letter landscape, 4×2 grid, 0.625mm bleed, 1.25mm card gap, 3-mark Silhouette registration, no cut overlays." />
+                <AutoTooltip content="Apply settings compatible with Alan Cha's Silhouette Card Maker (letter-standard-v6): Letter landscape, 4×2 grid, 0.625mm bleed, 3-mark Silhouette registration, no cut overlays." />
             </div>
 
             <PageSizeControl />

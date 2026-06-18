@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle, FolderPlus } from "lucide-react";
 import { useProjectStore, useSettingsStore } from "@/store";
 import { SelectDropdown } from "@/components/common";
 import { Button, TextInput, Label, Modal, ModalHeader, ModalBody, ModalFooter } from "flowbite-react";
@@ -44,11 +44,16 @@ export function ProjectSelector() {
     // --- Create ---
     const handleCreateProject = async () => {
         if (!createName.trim()) return;
-        const newId = await createProject(createName);
-        await switchProject(newId);
-        setCreateName("");
-        setIsCreateModalOpen(false);
-        setIsDropdownOpen(false);
+        try {
+            const newId = await createProject(createName);
+            await switchProject(newId);
+            setCreateName("");
+            setIsCreateModalOpen(false);
+            setIsDropdownOpen(false);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Failed to create project";
+            useToastStore.getState().showErrorToast(message);
+        }
     };
 
     // --- Rename ---
@@ -287,6 +292,16 @@ export function ProjectSelector() {
                         </button>
                     </div>
                 </SelectDropdown>
+
+                {/* New Project Button */}
+                <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 cursor-pointer rounded-md bg-blue-600 hover:bg-blue-700 active:translate-y-[2px] px-4 py-2 text-white transition-colors"
+                >
+                    <FolderPlus className="w-5 h-5" />
+                    <span className="text-sm font-medium">New Project</span>
+                </button>
 
                 {/* Share Project Button */}
                 <button

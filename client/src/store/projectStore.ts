@@ -37,6 +37,7 @@ type PersistableSettings = Omit<SettingsStore,
     | 'setSortBy' | 'setSortOrder' | 'setFilterManaCost' | 'setFilterColors' | 'setFilterTypes' | 'setFilterCategories' | 'setFilterFeatures'
     | 'setFilterMatchType' | 'setDecklistSortAlpha' | 'setShowProcessingToasts' | 'setDefaultCardbackId' | 'setExportMode'
     | 'setAutoImportTokens' | 'setMpcFuzzySearch' | 'setPreferredArtSource' | 'setActiveTcg'
+    | 'applyScmPreset'
     | 'hasHydrated'
 >;
 
