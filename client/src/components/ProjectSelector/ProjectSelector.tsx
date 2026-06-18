@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle, FolderPlus } from "lucide-react";
+import { Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle, FolderPlus } from "lucide-react";
 import { useProjectStore, useSettingsStore } from "@/store";
 import { SelectDropdown } from "@/components/common";
 import { Button, TextInput, Label, Modal, ModalHeader, ModalBody, ModalFooter } from "flowbite-react";
@@ -278,18 +278,6 @@ export function ProjectSelector() {
                             ))}
                         </div>
 
-                        <div className="h-px bg-gray-200 dark:bg-gray-600 my-1" />
-
-                        <button
-                            onClick={() => {
-                                setIsCreateModalOpen(true);
-                                setIsDropdownOpen(false);
-                            }}
-                            className="flex items-center gap-2 px-2 py-2 rounded-md hover:bg-blue-50 text-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/20 text-sm font-medium transition-colors"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Create New Project...
-                        </button>
                     </div>
                 </SelectDropdown>
 

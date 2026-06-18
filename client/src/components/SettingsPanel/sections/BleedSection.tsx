@@ -48,6 +48,16 @@ export function BleedSection() {
         <div className="space-y-3">
             <h3 className="text-lg font-semibold dark:text-white">Bleed Settings</h3>
 
+            {/* Enable toggle — first, so users understand inputs below are controlled by it */}
+            <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 -ml-2">
+                <Checkbox
+                    id="bleed-edge"
+                    checked={bleedEdge}
+                    onChange={(e) => setBleedEdge(e.target.checked)}
+                />
+                <Label htmlFor="bleed-edge" className="flex-1 cursor-pointer">Enable Bleed Edge</Label>
+            </div>
+
             {/* Global Bleed Width */}
             <div className="flex flex-col gap-2">
                 <Label className="text-nowrap">Bleed Width</Label>
@@ -86,15 +96,6 @@ export function BleedSection() {
                         <option value="in">in</option>
                     </Select>
                 </div>
-            </div>
-
-            <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 -ml-2">
-                <Checkbox
-                    id="bleed-edge"
-                    checked={bleedEdge}
-                    onChange={(e) => setBleedEdge(e.target.checked)}
-                />
-                <Label htmlFor="bleed-edge" className="flex-1 cursor-pointer">Enable Bleed Edge</Label>
             </div>
 
 

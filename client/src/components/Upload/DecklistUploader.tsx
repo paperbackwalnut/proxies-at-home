@@ -245,33 +245,38 @@ export function DecklistUploader({ mobile, cardCount, onUploadComplete }: Props)
 
             <div className="flex flex-col gap-3">
                 <Button color="blue" size="lg" onClick={handleSubmit} disabled={!deckText.trim()}>
-                    Fetch Cards
-                </Button>
-                <Button
-                    color="red"
-                    size="lg"
-                    onClick={handleClear}
-                    disabled={cardCount === 0}
-                >
-                    Clear Cards
+                    Import Cards
                 </Button>
                 <Button
                     color="indigo"
-                    size="lg"
+                    size="md"
                     onClick={() => setIsAdvancedSearchOpen(true)}
+                    className="w-full"
                 >
-                    <Search className="w-5 h-5 mr-2" />
+                    <Search className="w-4 h-4 mr-2" />
                     Advanced Search
                 </Button>
-                <Button
-                    color="purple"
-                    size="lg"
-                    onClick={() => handleAddTokens()}
-                    disabled={!hasTokensToFetch}
-                >
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Add Associated Tokens
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        color="purple"
+                        size="sm"
+                        onClick={() => handleAddTokens()}
+                        disabled={!hasTokensToFetch}
+                        className="flex-1"
+                    >
+                        <Sparkles className="w-4 h-4 mr-1" />
+                        Add Tokens
+                    </Button>
+                    <Button
+                        color="red"
+                        size="sm"
+                        onClick={handleClear}
+                        disabled={cardCount === 0}
+                        className="flex-1"
+                    >
+                        Clear
+                    </Button>
+                </div>
             </div>
 
             {/* Advanced Search Modal */}
