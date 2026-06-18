@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import React from "react";
-import { X } from "lucide-react";
+import { X, ChevronDown, ChevronRight } from "lucide-react";
 
 type Props = {
     id: string;
@@ -59,7 +59,7 @@ export function SettingsPanel({ id, title, isOpen, onToggle, children, icon: Ico
                         </span>
                     )}
                 </div>
-                {title}
+                <span className="flex-1">{title}</span>
                 {badge !== undefined && badge > 0 && onClearBadge && (
                     <button
                         type="button"
@@ -70,6 +70,10 @@ export function SettingsPanel({ id, title, isOpen, onToggle, children, icon: Ico
                         <X className="w-4 h-4" />
                     </button>
                 )}
+                {isOpen
+                    ? <ChevronDown className="size-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                    : <ChevronRight className="size-4 text-gray-400 dark:text-gray-500 shrink-0" />
+                }
             </div>
 
 
