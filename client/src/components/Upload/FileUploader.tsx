@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { inferCardNameFromFilename } from "@/helpers/mpc";
 import { addUploadLibraryImage } from "@/helpers/dbUtils";
 import type { ImportIntent } from "@/helpers/importParsers";
@@ -118,7 +118,9 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
                     const hasBuiltInBleed = uploadMode === "withBleed" || uploadMode === "cardback";
                     await addUploadedFiles(e.target.files, { hasBuiltInBleed, isCardback });
                 }
-
+            } catch (err) {
+                const message = err instanceof Error ? err.message : "Failed to upload image";
+                useToastStore.getState().showErrorToast(message);
             } finally {
                 if (!isCardback) {
                     setLoadingTask(null);
@@ -127,7 +129,8 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
         }
     };
 
-    const inputId = "upload-images-unified";
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     return (
         <div className={`space-y-1 ${mobile ? '' : ''}`}>
             <h6 className="font-medium dark:text-white sr-only">Upload Images</h6>
@@ -137,9 +140,7 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
                 sublabel={UPLOAD_MODE_OPTIONS.find((o) => o.value === uploadMode)?.label}
                 color="gray"
                 icon={Upload}
-                asLabel
-                htmlFor={inputId}
-                onClick={() => { }}
+                onClick={() => fileInputRef.current?.click()}
                 isOpen={isDropdownOpen}
                 onToggle={() => setIsDropdownOpen(!isDropdownOpen)}
                 onClose={() => setIsDropdownOpen(false)}
@@ -155,7 +156,7 @@ export function FileUploader({ mobile, onUploadComplete }: Props) {
 
             {/* Hidden file input */}
             <input
-                id={inputId}
+                ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 multiple
