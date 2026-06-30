@@ -12,6 +12,19 @@ import { detectBleed } from "./cardDimensions";
  */
 export async function hashBlob(blob: Blob): Promise<string> {
   const buffer = await blob.arrayBuffer();
+
+  // crypto.subtle requires a secure context (HTTPS/localhost). Fall back to
+  // a fast non-cryptographic hash so uploads work on plain-HTTP dev servers.
+  if (!crypto.subtle) {
+    const bytes = new Uint8Array(buffer);
+    let h = 0x811c9dc5;
+    for (let i = 0; i < bytes.length; i++) {
+      h ^= bytes[i];
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8, "0") + "_" + blob.size.toString(16);
+  }
+
   const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
