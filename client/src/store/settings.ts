@@ -219,16 +219,16 @@ export type Store = {
 
 const defaultPageSettings = {
   pageSizeUnit: "in" as "in" | "mm",
-  pageOrientation: "portrait" as "portrait" | "landscape",
+  pageOrientation: "landscape" as "portrait" | "landscape",
   pageSizePreset: "Letter" as LayoutPreset,
-  pageWidth: 8.5,
-  pageHeight: 11,
-  customPageWidth: 8.5,
-  customPageHeight: 11,
+  pageWidth: 11,
+  pageHeight: 8.5,
+  customPageWidth: 11,
+  customPageHeight: 8.5,
   customPageUnit: "in" as "in" | "mm",
-  columns: 3,
-  rows: 3,
-  bleedEdgeWidth: 1,
+  columns: 4,
+  rows: 2,
+  bleedEdgeWidth: 0.625,
   bleedEdge: true,
   bleedEdgeUnit: "mm" as "mm" | "in",
   // --- Bleed Settings (Source/Target Architecture) ---
@@ -265,8 +265,8 @@ const defaultPageSettings = {
   >,
   zoom: 1,
   dpi: 900,
-  cutLineStyle: "full" as "full" | "edges" | "none",
-  perCardGuideStyle: "corners" as
+  cutLineStyle: "none" as "full" | "edges" | "none",
+  perCardGuideStyle: "none" as
     | "corners"
     | "rounded-corners"
     | "solid-rounded-rect"
@@ -276,7 +276,7 @@ const defaultPageSettings = {
     | "none",
   guidePlacement: "outside" as "inside" | "outside",
   cutGuideLengthMm: 6.25,
-  registrationMarks: "none" as "none" | "3" | "4" | "cricut",
+  registrationMarks: "3" as "none" | "3" | "4" | "cricut",
   registrationMarksPortrait: false,
   globalLanguage: "en",
 
