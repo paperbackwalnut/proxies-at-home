@@ -8,6 +8,12 @@ export function hasIncompleteTagSyntax(query: string): boolean {
   return /\b\w+:\s*$/i.test(query);
 }
 
+/** Scryfall omits display padding from numeric collector numbers (e.g. 0066 -> 66). */
+export function normalizeCollectorNumber(number: string | undefined): string | undefined {
+  if (!number || !/^\d+[a-z]?$/i.test(number)) return number;
+  return number.replace(/^0+(?=\d)/, "");
+}
+
 export function extractCardInfo(input: string, quantity: number = 1): CardInfo {
   let s = input.trim();
   let mpcIdentifier: string | undefined;
@@ -162,7 +168,7 @@ export function extractCardInfo(input: string, quantity: number = 1): CardInfo {
     }
   }
 
-  return { name: s, quantity, set: setCode, number, mpcIdentifier, isToken };
+  return { name: s, quantity, set: setCode, number: normalizeCollectorNumber(number), mpcIdentifier, isToken };
 }
 
 export function parseDeckToInfos(deckText: string): CardInfo[] {

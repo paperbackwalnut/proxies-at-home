@@ -98,6 +98,12 @@ function escapeColon(s: string | number): string {
   return String(s).replace(/:/g, "\\:");
 }
 
+/** Printed cards may pad collector numbers, while Scryfall stores them unpadded. */
+export function normalizeCollectorNumber(number: string | number): string {
+  const value = String(number);
+  return /^\d+[a-z]?$/i.test(value) ? value.replace(/^0+(?=\d)/, "") : value;
+}
+
 interface ScryfallCardFace {
   name?: string;
   image_uris?: {
@@ -249,9 +255,10 @@ export async function batchFetchCards(
   for (const ci of cardInfos) {
     // For set+number lookups, language doesn't matter (the printing determines the language)
     // For name lookups, use the requested language
+    const normalizedNumber = ci.number ? normalizeCollectorNumber(ci.number) : undefined;
     const local =
       ci.set && ci.number
-        ? lookupCardBySetNumber(ci.set, ci.number, lang)
+        ? lookupCardBySetNumber(ci.set, normalizedNumber!, lang)
         : lookupCardByName(ci.name, lang);
 
     if (local && local.name) {
@@ -406,7 +413,7 @@ export async function batchFetchCards(
         if (ci.set && ci.number) {
           return {
             set: ci.set.toLowerCase(),
-            collector_number: String(ci.number),
+            collector_number: normalizeCollectorNumber(ci.number),
           };
         } else if (ci.set) {
           return { name: ci.name, set: ci.set.toLowerCase() };
@@ -603,7 +610,7 @@ export function lookupCardFromBatch(
 
   // Try set+number first (most specific)
   if (cardInfo.set && cardInfo.number) {
-    const setNumKey = `${cardInfo.set.toLowerCase()}:${cardInfo.number}`;
+    const setNumKey = `${cardInfo.set.toLowerCase()}:${normalizeCollectorNumber(cardInfo.number)}`;
     const exact = batchResults.get(setNumKey);
     if (exact) {
       debugLog(`[lookupCardFromBatch] Found by set+number: "${exact.name}"`);
@@ -641,8 +648,10 @@ async function searchScryfallWithFallback<T>(
 
   if (!results.length && fallbackToEnglish && lang !== "en") {
     const qEn = queryBuilder("en");
-    debugLog(`[Scryfall] Fallback query: ${qEn}`);
-    results = await searchFn(qEn);
+    if (qEn !== q) {
+      debugLog(`[Scryfall] Fallback query: ${qEn}`);
+      results = await searchFn(qEn);
+    }
   }
 
   return results;
@@ -675,7 +684,7 @@ export async function getImagesForCardInfo(
   if (unique === "prints" && set && number) {
     const results = await executeStrategy(
       (lang) =>
-        `set:${set} number:${escapeColon(number)} name:"${name}" include:extras unique:prints lang:${lang}`
+        `set:${set} number:${escapeColon(normalizeCollectorNumber(number))} name:"${name}" include:extras unique:prints`
     );
     if (results.length) return results;
   }
@@ -727,7 +736,7 @@ export async function getCardsWithImagesForCardInfo(
     if (set && number) {
       const results = await executeStrategy(
         (lang) =>
-          `set:${set} number:${escapeColon(number)} name:"${name}"${typeFilter} include:extras unique:prints lang:${lang}`
+          `set:${set} number:${escapeColon(normalizeCollectorNumber(number))} name:"${name}"${typeFilter} include:extras unique:prints`
       );
       if (results.length) return results;
       // If no results with exact match, fall through to broader search
@@ -822,7 +831,7 @@ export async function getCardDataForCardInfo(
   if (set && number) {
     const cards = await executeStrategy(
       (lang) =>
-        `set:${set} number:${escapeColon(number)} name:"${name}" include:extras lang:${lang}`
+        `set:${set} number:${escapeColon(normalizeCollectorNumber(number))} name:"${name}" include:extras`
     );
     if (cards.length) return cards[0];
   }

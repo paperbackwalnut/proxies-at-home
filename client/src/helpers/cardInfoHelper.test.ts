@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractCardInfo, parseDeckToInfos, cardKey } from "./cardInfoHelper";
+import { extractCardInfo, parseDeckToInfos, cardKey, normalizeCollectorNumber } from "./cardInfoHelper";
 
 describe('CardInfoHelper', () => {
   describe('extractCardInfo', () => {
@@ -11,6 +11,16 @@ describe('CardInfoHelper', () => {
         set: 'cmm',
         number: '432',
       });
+    });
+
+    it('should normalize printed leading zeroes in collector numbers', () => {
+      expect(extractCardInfo("Akroma’s Will (SOA) 0066")).toEqual({
+        name: "Akroma’s Will",
+        quantity: 1,
+        set: "soa",
+        number: "66",
+      });
+      expect(normalizeCollectorNumber("0019a")).toBe("19a");
     });
 
     it('should parse a line with only a set', () => {

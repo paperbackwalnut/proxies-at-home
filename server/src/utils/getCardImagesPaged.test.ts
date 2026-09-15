@@ -67,8 +67,16 @@ describe("getCardImagesPaged", () => {
       await getImagesForCardInfo(cardInfo, "prints");
 
       const expectedUrl =
-        "https://api.scryfall.com/cards/search?q=set%3Acmr%20number%3A332%20name%3A%22Sol%20Ring%22%20include%3Aextras%20unique%3Aprints%20lang%3Aen";
+        "https://api.scryfall.com/cards/search?q=set%3Acmr%20number%3A332%20name%3A%22Sol%20Ring%22%20include%3Aextras%20unique%3Aprints";
       expect(mockedAxios.get).toHaveBeenCalledWith(expectedUrl);
+    });
+
+    it("should normalize padded collector numbers and not force a language", async () => {
+      mockedAxios.get.mockResolvedValue(mockScryfallResponse([singleFaceCard]));
+      await getImagesForCardInfo({ name: "Akroma’s Will", set: "soa", number: "0066" }, "prints");
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(expect.stringContaining("number%3A66"));
+      expect(mockedAxios.get).toHaveBeenCalledWith(expect.not.stringContaining("lang%3A"));
     });
 
     it("should fall back to name-only query if set+number fails", async () => {

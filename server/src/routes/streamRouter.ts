@@ -188,9 +188,9 @@ function buildCardResponse(
     if (!mana_cost) mana_cost = card.card_faces[0].mana_cost;
   }
 
-  // Use the user's requested set/number if specified, otherwise use Scryfall's values
-  const responseSet = querySet || card.set;
-  const responseNumber = queryNumber || card.collector_number;
+  // Prefer Scryfall's canonical identifiers (not display-padded input such as SOA 0066).
+  const responseSet = card.set || querySet;
+  const responseNumber = card.collector_number || queryNumber;
 
   // Build card_faces for DFC support on client
   const card_faces = card.card_faces?.map(face => ({
@@ -220,7 +220,7 @@ function buildCardResponse(
     name: canonicalName,
     set: responseSet,
     number: responseNumber,
-    lang: language,
+    lang: card.lang || language,
     imageUrls,
     prints,
     colors,
