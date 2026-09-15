@@ -159,7 +159,7 @@ export default function ProjectsPage({ onOpenProject }: { onOpenProject: (id: st
   }, "Backup import complete");
 
   return (
-    <div className="relative min-h-dvh bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
+    <div className="relative h-full overflow-y-auto bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white">
       <header className="border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-7 sm:px-8 lg:flex-row lg:items-end lg:justify-between">
           <div><div className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">Proxxied</div><h1 className="mt-1 text-3xl font-bold">Projects</h1><p className="mt-1 text-gray-500 dark:text-gray-400">Browse decks, artwork, and print layouts in one place.</p></div>
