@@ -7,9 +7,14 @@ import { db } from "@/db";
 import { useProjectStore, useUserPreferencesStore } from "@/store";
 
 const ProxyBuilderPage = lazy(() => import("@/pages/ProxyBuilderPage"));
+const ProjectsPage = lazy(() => import("@/pages/ProjectsPage"));
 
 function App() {
   const [showAbout, setShowAbout] = useState(false);
+  const [activePage, setActivePage] = useState<"projects" | "builder">(() => {
+    const hasSharedProject = new URLSearchParams(window.location.search).has("share");
+    return hasSharedProject || window.location.hash === "#builder" ? "builder" : "projects";
+  });
 
   // Detect and load shared deck from ?share=xxx URL parameter
   useShareUrl();
@@ -77,6 +82,23 @@ function App() {
     return () => { isCancelled = true; };
   }, []);
 
+  useEffect(() => {
+    const syncPage = () => setActivePage(window.location.hash === "#builder" ? "builder" : "projects");
+    const openProjects = () => { window.location.hash = "projects"; setActivePage("projects"); };
+    window.addEventListener("hashchange", syncPage);
+    window.addEventListener("open-projects", openProjects);
+    return () => {
+      window.removeEventListener("hashchange", syncPage);
+      window.removeEventListener("open-projects", openProjects);
+    };
+  }, []);
+
+  const openProject = async (id: string) => {
+    await useProjectStore.getState().switchProject(id);
+    window.location.hash = "builder";
+    setActivePage("builder");
+  };
+
 
   // Listen for Electron "About" menu click and settings button click
   useEffect(() => {
@@ -105,7 +127,7 @@ function App() {
       <UpdateNotification />
       <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
 
-      <ProxyBuilderPage />
+      {activePage === "projects" ? <ProjectsPage onOpenProject={openProject} /> : <ProxyBuilderPage />}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle, FolderPlus, FolderCog } from "lucide-react";
+import { Check, Trash2, Edit2, Share2, RefreshCw, AlertCircle, FolderPlus } from "lucide-react";
 import { useProjectStore, useSettingsStore } from "@/store";
 import { SelectDropdown } from "@/components/common";
 import { Button, TextInput, Label, Modal, ModalHeader, ModalBody, ModalFooter } from "flowbite-react";
@@ -11,7 +11,6 @@ import { useToastStore } from "@/store/toast";
 import { useShallow } from "zustand/react/shallow";
 import { useShareSync } from "@/hooks/useShareSync";
 import { debugLog } from "@/helpers/debug";
-import { ProjectManagerModal } from "./ProjectManagerModal";
 
 export function ProjectSelector() {
     const projects = useProjectStore((state) => state.projects);
@@ -22,7 +21,6 @@ export function ProjectSelector() {
     const renameProject = useProjectStore((state) => state.renameProject);
 
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [isManagerOpen, setIsManagerOpen] = useState(false);
 
     // Modal states
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -297,15 +295,6 @@ export function ProjectSelector() {
                     <span className="text-sm font-medium">New Project</span>
                 </button>
 
-                <button
-                    type="button"
-                    onClick={() => setIsManagerOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 cursor-pointer rounded-md border border-gray-300 bg-white hover:bg-gray-50 px-4 py-2 text-gray-700 transition-colors dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                >
-                    <FolderCog className="w-5 h-5" />
-                    <span className="text-sm font-medium">Project Manager</span>
-                </button>
-
                 {/* Share Project Button */}
                 <button
                     type="button"
@@ -352,8 +341,6 @@ export function ProjectSelector() {
                     )}
                 </button>
             </div>
-
-            <ProjectManagerModal show={isManagerOpen} onClose={() => setIsManagerOpen(false)} />
 
             {/* Create Project Modal */}
             <Modal
